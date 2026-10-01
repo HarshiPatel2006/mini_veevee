@@ -8,9 +8,13 @@ from django.core.files.base import ContentFile
 
 
 
-# Replace the fallback string with your actual key:
-RUNPOD_API_KEY = os.environ.get("RUNPOD_API_KEY", "rpa_G9W3Q33FD5GJS9SL2H3DM9NYYLNVFKTLLDY1TRCF1p66ig")
-runpod.api_key = RUNPOD_API_KEY
+import os
+
+# REPLACE THIS:
+# RUNPOD_API_KEY = "rnp_xxxx_your_actual_key"
+
+# WITH THIS:
+RUNPOD_API_KEY = os.environ.get("RUNPOD_API_KEY")
 
 # generator/services.py
 

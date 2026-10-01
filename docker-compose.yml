@@ -1,0 +1,14 @@
+services:
+  web:
+    build: .
+    container_name: veevee_django_app
+    ports:
+      - "8000:8000"
+    environment:
+      - RUNPOD_API_KEY=${RUNPOD_API_KEY}
+    volumes:
+      - .:/app
+      - veevee_media:/app/media
+
+volumes:
+  veevee_media:

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VEEVEE Studio — On-Demand Pod Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-8">
+    <div class="max-w-2xl mx-auto bg-gray-800 p-6 rounded-xl shadow-lg border border-purple-500/30">
+        <h1 class="text-2xl font-bold mb-4 text-purple-400">VEEVEE UI — Dynamic Workflow Studio</h1>
+        
+        <form method="POST" enctype="multipart/form-data" class="space-y-4">
+            {% csrf_token %}
+            
+            <div>
+                <label class="block text-sm font-medium mb-1">Select Workflow</label>
+                <select name="workflow_type" class="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white">
+                    <option value="IMAGE">Image Generation (Stable Diffusion Workflow)</option>
+                    <option value="AUDIO">Audio / Music Generation (Comfy Audio Workflow)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium mb-1">Prompt</label>
+                <textarea name="prompt" required class="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white" placeholder="Enter text prompt for image or music..."></textarea>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-medium mb-1 text-gray-300">Input Image (Optional)</label>
+                    <input type="file" name="image" accept="image/*" class="w-full text-xs text-gray-400">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium mb-1 text-gray-300">Input Music/Audio (Optional)</label>
+                    <input type="file" name="audio" accept="audio/*" class="w-full text-xs text-gray-400">
+                </div>
+            </div>
+
+            <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 font-bold py-3 px-4 rounded transition">
+                🚀 Deploy RunPod GPU & Execute
+            </button>
+        </form>
+
+        <h2 class="text-xl font-bold mt-8 mb-4">Recent Executions</h2>
+        <ul class="space-y-2">
+            {% for task in tasks %}
+                <li class="p-3 bg-gray-700 rounded flex justify-between items-center">
+                    <span>Task #{{ task.id }} ({{ task.workflow_type }})</span>
+                    <a href="{% url 'task_detail' task.id %}" class="text-purple-400 underline text-sm">View Job</a>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>

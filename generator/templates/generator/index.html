@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Studio — Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 680px;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-align: center;
+            letter-spacing: -0.025em;
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 28px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 110px;
+            background: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.95rem;
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            border-color: var(--accent);
+        }
+
+        button.btn-submit {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        button.btn-submit:hover { background: var(--accent-hover); }
+        button.btn-submit:active { transform: scale(0.99); }
+        button.btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .status-box {
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            min-height: 24px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--text-muted);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .result-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            margin-top: 8px;
+        }
+
+        .img-wrapper {
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: #000;
+        }
+
+        .img-wrapper img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .btn-download {
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .btn-download:hover {
+            background: var(--border);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>AI Image Generator</h1>
+    <p class="subtitle">RunPod & ComfyUI Pipeline</p>
+
+    <form id="gen-form">
+        <div class="form-group">
+            <textarea id="prompt" name="prompt" placeholder="Describe the image you want to create..." required></textarea>
+            <button type="submit" id="submit-btn" class="btn-submit">
+                <span>Generate Image</span>
+            </button>
+        </div>
+    </form>
+
+    <div class="status-box">
+        <div id="spinner" class="spinner"></div>
+        <span id="status-text"></span>
+    </div>
+
+    <div id="result-container" class="result-container">
+        <div class="img-wrapper">
+            <img id="output-image" src="" alt="Generated Result">
+        </div>
+        <button id="download-btn" class="btn-download">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path>
+            </svg>
+            Download High-Res
+        </button>
+    </div>
+</div>
+
+<script>
+    let pollInterval = null;
+
+    const form = document.getElementById('gen-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const statusText = document.getElementById('status-text');
+    const spinner = document.getElementById('spinner');
+    const resultContainer = document.getElementById('result-container');
+    const outputImage = document.getElementById('output-image');
+    const downloadBtn = document.getElementById('download-btn');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        if (pollInterval) clearInterval(pollInterval);
+
+        // UI Reset
+        submitBtn.disabled = true;
+        spinner.style.display = 'block';
+        statusText.innerText = 'Submitting prompt to RunPod...';
+        resultContainer.style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('prompt', document.getElementById('prompt').value);
+
+        try {
+            const response = await fetch('/generate/', { method: 'POST', body: formData });
+            const data = await response.json();
+
+            if (data.status === 'success' && data.prompt_id) {
+                statusText.innerText = `Queued (${data.prompt_id.substring(0, 8)}...). Generating...`;
+                pollStatus(data.prompt_id);
+            } else {
+                showError(data.message || 'Failed to submit job.');
+            }
+        } catch (err) {
+            showError('Network error connecting to Django backend.');
+        }
+    });
+
+    function pollStatus(promptId) {
+        pollInterval = setInterval(async () => {
+            try {
+                const res = await fetch(`/status/${promptId}/`);
+                const data = await res.json();
+
+                if (data.status === 'completed') {
+                    clearInterval(pollInterval);
+                    spinner.style.display = 'none';
+                    statusText.innerText = '';
+                    submitBtn.disabled = false;
+
+                    // Render output
+                    outputImage.src = data.image_url;
+                    resultContainer.style.display = 'flex';
+
+                    // Set up download listener via Blob fetch
+                    downloadBtn.onclick = () => downloadImage(data.image_url);
+                } else if (data.status === 'error') {
+                    clearInterval(pollInterval);
+                    showError(data.message);
+                }
+            } catch (err) {
+                console.error("Polling error:", err);
+            }
+        }, 2000);
+    }
+
+    function showError(msg) {
+        spinner.style.display = 'none';
+        submitBtn.disabled = false;
+        statusText.innerText = `Error: ${msg}`;
+    }
+
+    async function downloadImage(url) {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `generated-${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+        } catch (err) {
+            // Fallback for CORS limits
+            window.open(url, '_blank');
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,249 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "lens\\lens_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "2": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "3": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 20,
+      "denoise": 1,
+      "model": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "4": {
+    "inputs": {
+      "expression": "a & -8",
+      "values.a": [
+        "6",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "5": {
+    "inputs": {
+      "width": [
+        "12",
+        1
+      ],
+      "height": [
+        "4",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "6": {
+    "inputs": {
+      "aspect_ratio": "1:1 (Square)",
+      "megapixels": 2,
+      "multiple": 8
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Resolution Selector"
+    }
+  },
+  "7": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 937888105118440,
+      "cfg": 5,
+      "model": [
+        "15",
+        0
+      ],
+      "positive": [
+        "18",
+        0
+      ],
+      "negative": [
+        "17",
+        0
+      ],
+      "sampler": [
+        "2",
+        0
+      ],
+      "sigmas": [
+        "3",
+        0
+      ],
+      "latent_image": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "clip_name": "gpt_oss_20b_nvfp4.safetensors",
+      "type": "lens",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "10": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "11": {
+    "inputs": {
+      "filename_prefix": "img",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "12": {
+    "inputs": {
+      "expression": "a & -8",
+      "values.a": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "13": {
+    "inputs": {
+      "UNKNOWN": "{\"version\":1,\"content\":\"<h2>MODELS AND NODES USED IN THIS WORKFLOW</h2><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #777777\\\"><p>\\n\\n</p><h3><span data-ic=\\\"model-v4\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;Load Diffusion Model</h3><p>\\n\\n<span class=\\\"pix-note-btnblock\\\"><a class=\\\"pix-note-dl\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/Comfy-Org/Lens/resolve/main/diffusion_models/lens_bf16.safetensors\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Download lens_bf16.safetensors<span class=\\\"pix-note-btnsize\\\">7.6 GB</span></a></span>&nbsp;\\n\\n</p><div class=\\\"pix-note-folderhint\\\" style=\\\"color: #888888\\\">Place in: ComfyUI/models/diffusion_models/lens<br><span class=\\\"pix-note-btnblock\\\"><a class=\\\"pix-note-rm\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/microsoft/Lens\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Read More About the Model</a></span>&nbsp;</div><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #777777\\\"><p>\\n\\n</p><h3><span data-ic=\\\"CLIP\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;Load CLIP</h3><p>\\n\\n<span class=\\\"pix-note-btnblock\\\"><a class=\\\"pix-note-dl\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/Comfy-Org/Lens/resolve/main/text_encoders/gpt_oss_20b_nvfp4.safetensors\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Download gpt_oss_20b_nvfp4.safetensors<span class=\\\"pix-note-btnsize\\\">12.3 GB</span></a></span>&nbsp;\\n\\n</p><div class=\\\"pix-note-folderhint\\\" style=\\\"color: #888888\\\">Place in: ComfyUI/models/text_encoders</div><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #777777\\\"><p>\\n\\n</p><h3><span data-ic=\\\"VAE\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;Load VAE</h3><p>\\n\\n<span class=\\\"pix-note-btnblock\\\"><a class=\\\"pix-note-dl\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/Comfy-Org/Lens/resolve/main/vae/flux2-vae.safetensors\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Download flux2-vae.safetensors<span class=\\\"pix-note-btnsize\\\">320 MB</span></a></span>&nbsp;\\n\\n</p><div class=\\\"pix-note-folderhint\\\" style=\\\"color: #888888\\\">Place in: ComfyUI/models/vae</div><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #777777\\\"><p>\\n\\n</p><h3></h3><p>\\n\\n</p><p><span data-ic=\\\"warning-v1\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;After placing the files, <span style=\\\"color: #f66744\\\">restart</span> ComfyUI or refresh model lists using <span style=\\\"color: #f66744\\\">R</span> shortcut.</p><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #777777\\\"><p>\\n\\n</p><h3><span data-ic=\\\"nodes-installed\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;Custom Nodes</h3><p>\\n\\n</p><ul>\\n  <li>Pixaroma</li>\\n</ul><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #777777\\\"><p>\\n\\n</p><h3><span data-ic=\\\"pixaroma\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;Resources</h3><p>\\n\\n<span class=\\\"pix-note-btnblock\\\">\\n  <a class=\\\"pix-note-discord\\\" href=\\\"https://discord.com/invite/gggpkVgBf3\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Join Discord</a>\\n</span>&nbsp;\\n\\n<span class=\\\"pix-note-btnblock\\\">\\n  <a class=\\\"pix-note-yt\\\" href=\\\"https://www.youtube.com/@pixaroma\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Pixaroma YouTube Channel</a>\\n</span>&nbsp;</p>\",\"buttonColor\":\"#f66744\",\"lineColor\":\"#f66744\",\"width\":528.8383221706308,\"height\":591.2463174881113,\"backgroundColor\":\"#2a2a2a\"}",
+      "UNKNOWN_1": ""
+    },
+    "_meta": {}
+  },
+  "14": {
+    "inputs": {
+      "UNKNOWN": "{\"text\":\"Lens txt2img\",\"fontSize\":36,\"fontFamily\":\"Arial\",\"fontColor\":\"#ffffff\",\"textAlign\":\"left\",\"backgroundColor\":\"#f66744\",\"padding\":10,\"borderRadius\":0,\"opacity\":1,\"fontWeight\":\"normal\",\"lineHeight\":1}"
+    },
+    "_meta": {}
+  },
+  "15": {
+    "inputs": {
+      "strength": 1,
+      "pre_cfg": false,
+      "model": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "CFGNorm",
+    "_meta": {
+      "title": "CFGNorm"
+    }
+  },
+  "16": {
+    "inputs": {
+      "max_shift": 1.15,
+      "base_shift": 0.5,
+      "width": [
+        "12",
+        1
+      ],
+      "height": [
+        "4",
+        1
+      ],
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingFlux",
+    "_meta": {
+      "title": "ModelSamplingFlux"
+    }
+  },
+  "17": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "18": {
+    "inputs": {
+      "text": "A delicious juicy rustic burger on a wooden surface, glossy golden bun, thick beef patty, melted cheese dripping down the sides, crispy bacon, fresh lettuce, tomato slices, caramelized onions, rich savory sauce, dramatic moody lighting, deep shadows, warm highlights, rustic food styling, hearty handcrafted look, shallow depth of field, ultra-detailed, appetizing presentation, high-end food photography, dark blurred background",
+      "clip": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  }
+}

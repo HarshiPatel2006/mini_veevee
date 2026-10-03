@@ -1,5 +1,12 @@
 .venv/
+venv/
 *.pyc
 __pycache__/
 db.sqlite3
 .DS_Store
+models/
+*.safetensors
+*.ckpt
+*.pt
+*.bin
+*.part

@@ -3,294 +3,1444 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Studio — Generator</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>AI Studio — Apple Pro Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #0f172a;
-            --card-bg: #1e293b;
-            --accent: #6366f1;
-            --accent-hover: #4f46e5;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --border: #334155;
+            --bg-page: #000000;
+            --bg-card: rgba(22, 22, 24, 0.75);
+            --bg-card-hover: rgba(30, 30, 34, 0.85);
+            --bg-input: rgba(15, 15, 17, 0.8);
+            --border-subtle: rgba(255, 255, 255, 0.1);
+            --border-highlight: rgba(255, 255, 255, 0.2);
+            --text-primary: #f5f5f7;
+            --text-secondary: #86868b;
+            --text-tertiary: #6e6e73;
+            --apple-blue: #0071e3;
+            --apple-blue-hover: #0077ed;
+            --apple-blue-active: #006edb;
+            --apple-green: #30d158;
+            --apple-orange: #ff9f0a;
+            --apple-red: #ff453a;
+            --font-stack: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            --radius-pill: 980px;
+            --radius-card: 22px;
+            --radius-btn: 14px;
+            --shadow-apple: 0 20px 40px rgba(0, 0, 0, 0.6);
+            --transition-smooth: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg);
-            color: var(--text-main);
+            font-family: var(--font-stack);
+            background-color: var(--bg-page);
+            color: var(--text-primary);
             min-height: 100vh;
             display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            letter-spacing: -0.01em;
+        }
+
+        /* Ambient Glow Backdrop */
+        .ambient-glow {
+            position: fixed;
+            top: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(0, 113, 227, 0.12) 0%, rgba(147, 51, 234, 0.05) 45%, rgba(0, 0, 0, 0) 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Navigation Header */
+        header.apple-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            height: 56px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
             align-items: center;
-            justify-content: center;
-            padding: 24px;
+            justify-content: space-between;
+            padding: 0 28px;
         }
 
-        .container {
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .apple-icon {
+            width: 17px;
+            height: 20px;
+            fill: var(--text-primary);
+        }
+
+        .brand-title {
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        .brand-badge {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--apple-blue);
+            background: rgba(0, 113, 227, 0.15);
+            padding: 2px 8px;
+            border-radius: var(--radius-pill);
+            border: 1px solid rgba(0, 113, 227, 0.3);
+        }
+
+        .nav-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-pill);
+            font-size: 12px;
+            color: var(--text-secondary);
+            transition: var(--transition-smooth);
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background-color: var(--text-tertiary);
+            transition: var(--transition-smooth);
+        }
+
+        .status-dot.active {
+            background-color: var(--apple-green);
+            box-shadow: 0 0 10px rgba(48, 209, 88, 0.6);
+            animation: pulse-dot 2s infinite ease-in-out;
+        }
+
+        .status-dot.syncing {
+            background-color: var(--apple-orange);
+            box-shadow: 0 0 10px rgba(255, 159, 10, 0.6);
+            animation: pulse-dot 1.5s infinite ease-in-out;
+        }
+
+        .status-dot.error {
+            background-color: var(--apple-red);
+            box-shadow: 0 0 10px rgba(255, 69, 58, 0.6);
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.9); }
+        }
+
+        /* Main Container */
+        main.main-content {
+            position: relative;
+            z-index: 1;
             width: 100%;
-            max-width: 680px;
-            background: var(--card-bg);
-            border-radius: 16px;
-            padding: 32px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-            border: 1px solid var(--border);
-        }
-
-        h1 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            margin-bottom: 8px;
-            text-align: center;
-            letter-spacing: -0.025em;
-        }
-
-        p.subtitle {
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 0.95rem;
-            margin-bottom: 28px;
-        }
-
-        .form-group {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 44px 20px 80px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            margin-bottom: 24px;
+            gap: 36px;
         }
 
-        textarea {
+        /* Hero Header */
+        .hero-section {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .hero-eyebrow {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: var(--apple-blue);
+        }
+
+        .hero-title {
+            font-size: clamp(2.4rem, 5vw, 3.4rem);
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1.08;
+            background: linear-gradient(180deg, #FFFFFF 0%, #B8B8BD 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-subtitle {
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            color: var(--text-secondary);
+            font-weight: 400;
+            max-width: 580px;
+            line-height: 1.45;
+        }
+
+        /* Model Sync Banner */
+        .sync-banner {
+            display: none;
             width: 100%;
-            height: 110px;
-            background: #0f172a;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 14px 16px;
-            color: var(--text-main);
+            background: rgba(255, 159, 10, 0.1);
+            border: 1px solid rgba(255, 159, 10, 0.25);
+            border-radius: 14px;
+            padding: 12px 18px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 13px;
+            color: #ffe6b0;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .sync-banner.visible {
+            display: flex;
+        }
+
+        .sync-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sync-progress-bar-wrap {
+            width: 120px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-pill);
+            overflow: hidden;
+        }
+
+        .sync-progress-bar-fill {
+            height: 100%;
+            background: var(--apple-orange);
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        /* Generator Glass Card */
+        .studio-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-card);
+            backdrop-filter: saturate(180%) blur(28px);
+            -webkit-backdrop-filter: saturate(180%) blur(28px);
+            padding: 32px;
+            box-shadow: var(--shadow-apple);
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            transition: var(--transition-smooth);
+        }
+
+        .studio-card:focus-within {
+            border-color: rgba(255, 255, 255, 0.18);
+        }
+
+        /* Prompt Textarea Section */
+        .prompt-wrapper {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .prompt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .prompt-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .char-counter {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .prompt-textarea {
+            width: 100%;
+            min-height: 110px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 16px 18px;
+            color: var(--text-primary);
             font-family: inherit;
-            font-size: 0.95rem;
+            font-size: 15px;
+            line-height: 1.5;
             resize: vertical;
             outline: none;
-            transition: border-color 0.2s;
+            transition: var(--transition-smooth);
         }
 
-        textarea:focus {
-            border-color: var(--accent);
+        .prompt-textarea:focus {
+            border-color: var(--apple-blue);
+            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25);
         }
 
-        button.btn-submit {
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            padding: 14px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s, transform 0.1s;
+        .prompt-textarea::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        /* Prompt Suggestions */
+        .suggestions-group {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        button.btn-submit:hover { background: var(--accent-hover); }
-        button.btn-submit:active { transform: scale(0.99); }
-        button.btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        .status-box {
-            text-align: center;
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            min-height: 24px;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .spinner {
-            width: 16px;
-            height: 16px;
-            border: 2px solid var(--text-muted);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            display: none;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .result-container {
-            display: none;
             flex-direction: column;
+            gap: 10px;
+        }
+
+        .suggestions-title {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .chips-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .chip-pill {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-pill);
+            padding: 6px 14px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .chip-pill:hover {
+            background: rgba(255, 255, 255, 0.09);
+            color: var(--text-primary);
+            border-color: var(--border-highlight);
+            transform: translateY(-1px);
+        }
+
+        /* Aspect Ratio Segmented Control */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .control-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .segmented-control {
+            display: inline-flex;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 4px;
+            gap: 4px;
+            overflow-x: auto;
+        }
+
+        .seg-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 7px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: inherit;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            white-space: nowrap;
+            display: flex;
             align-items: center;
+            gap: 6px;
+        }
+
+        .seg-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .seg-btn.active {
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Action Row */
+        .action-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             gap: 16px;
             margin-top: 8px;
         }
 
-        .img-wrapper {
-            width: 100%;
-            border-radius: 12px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-            background: #000;
+        .keyboard-hint {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
-        .img-wrapper img {
+        kbd {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-subtle);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-family: inherit;
+        }
+
+        .btn-apple-primary {
+            background: var(--apple-blue);
+            color: #ffffff;
+            border: none;
+            border-radius: var(--radius-pill);
+            padding: 12px 28px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: var(--transition-smooth);
+            box-shadow: 0 4px 14px rgba(0, 113, 227, 0.35);
+        }
+
+        .btn-apple-primary:hover:not(:disabled) {
+            background: var(--apple-blue-hover);
+            transform: scale(1.02);
+            box-shadow: 0 6px 20px rgba(0, 113, 227, 0.45);
+        }
+
+        .btn-apple-primary:active:not(:disabled) {
+            background: var(--apple-blue-active);
+            transform: scale(0.98);
+        }
+
+        .btn-apple-primary:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Apple Progress & Loading State */
+        .progress-box {
+            display: none;
+            flex-direction: column;
+            gap: 14px;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .progress-box.visible {
+            display: flex;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .progress-stage {
+            font-weight: 500;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .apple-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-top-color: var(--apple-blue);
+            border-radius: 50%;
+            animation: apple-spin 0.8s linear infinite;
+        }
+
+        @keyframes apple-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .progress-time {
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .apple-progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-pill);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .apple-progress-indicator {
+            position: absolute;
+            height: 100%;
+            width: 35%;
+            background: linear-gradient(90deg, transparent, var(--apple-blue), transparent);
+            animation: indeterminate 1.8s infinite ease-in-out;
+        }
+
+        @keyframes indeterminate {
+            0% { left: -35%; }
+            100% { left: 100%; }
+        }
+
+        /* Error Notification */
+        .error-card {
+            display: none;
+            background: rgba(255, 69, 58, 0.1);
+            border: 1px solid rgba(255, 69, 58, 0.3);
+            border-radius: 14px;
+            padding: 16px 20px;
+            color: #ffb4ab;
+            font-size: 13px;
+            line-height: 1.5;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .error-card.visible {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .error-icon {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            fill: var(--apple-red);
+        }
+
+        /* Image Display Section */
+        .showcase-section {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+            animation: fadeIn 0.6s ease;
+        }
+
+        .showcase-section.visible {
+            display: flex;
+        }
+
+        .image-frame-container {
+            position: relative;
+            width: 100%;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid var(--border-subtle);
+            background: #000000;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .result-image {
             width: 100%;
             height: auto;
+            max-height: 750px;
+            object-fit: contain;
+            display: block;
+            cursor: zoom-in;
+            transition: transform 0.4s ease;
+        }
+
+        .result-image:hover {
+            transform: scale(1.008);
+        }
+
+        /* Action Toolbar below image */
+        .image-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 4px 4px;
+        }
+
+        .prompt-preview-pill {
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-pill);
+            padding: 6px 14px;
+            max-width: 480px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .toolbar-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-apple-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-pill);
+            padding: 9px 18px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            text-decoration: none;
+            transition: var(--transition-smooth);
+        }
+
+        .btn-apple-secondary:hover {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: var(--border-highlight);
+            transform: translateY(-1px);
+        }
+
+        /* History Gallery */
+        .history-section {
+            display: none;
+            flex-direction: column;
+            gap: 14px;
+            margin-top: 12px;
+        }
+
+        .history-section.visible {
+            display: flex;
+        }
+
+        .history-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-clear-btn {
+            background: none;
+            border: none;
+            color: var(--text-tertiary);
+            font-size: 12px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .history-clear-btn:hover {
+            color: var(--text-secondary);
+        }
+
+        .history-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 12px;
+        }
+
+        .history-item {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-subtle);
+            background: #111;
+            aspect-ratio: 1;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .history-item:hover {
+            transform: scale(1.04);
+            border-color: var(--apple-blue);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+        }
+
+        .history-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
             display: block;
         }
 
-        .btn-download {
-            background: transparent;
-            color: var(--text-main);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-size: 0.9rem;
-            font-weight: 500;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
+        /* Lightbox Modal */
+        .lightbox-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.92);
+            backdrop-filter: blur(24px);
+            z-index: 200;
+            justify-content: center;
             align-items: center;
-            gap: 8px;
-            transition: background 0.2s;
+            padding: 30px;
+            cursor: zoom-out;
+            animation: fadeIn 0.25s ease;
         }
 
-        .btn-download:hover {
-            background: var(--border);
+        .lightbox-modal.visible {
+            display: flex;
+        }
+
+        .lightbox-modal img {
+            max-width: 95vw;
+            max-height: 92vh;
+            object-fit: contain;
+            border-radius: 12px;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.9);
+            cursor: default;
+        }
+
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border-subtle);
+            color: #fff;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+            transition: var(--transition-smooth);
+        }
+
+        .lightbox-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%) translateY(40px);
+            background: rgba(30, 30, 32, 0.95);
+            border: 1px solid var(--border-highlight);
+            color: #fff;
+            padding: 10px 22px;
+            border-radius: var(--radius-pill);
+            font-size: 13px;
+            font-weight: 500;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+            z-index: 300;
+        }
+
+        .toast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Footer */
+        footer.apple-footer {
+            margin-top: auto;
+            border-top: 1px solid var(--border-subtle);
+            padding: 24px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 16px;
+        }
+
+        .footer-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+
+        .footer-link:hover {
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 640px) {
+            header.apple-nav { padding: 0 16px; }
+            main.main-content { padding: 24px 16px 60px; gap: 24px; }
+            .studio-card { padding: 20px; border-radius: 18px; }
+            .action-row { flex-direction: column-reverse; align-items: stretch; }
+            .btn-apple-primary { justify-content: center; }
+            .keyboard-hint { justify-content: center; }
+            .image-toolbar { flex-direction: column; align-items: stretch; }
+            .toolbar-buttons { justify-content: stretch; }
+            .toolbar-buttons button, .toolbar-buttons a { flex: 1; justify-content: center; }
+            footer.apple-footer { flex-direction: column; gap: 12px; text-align: center; }
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>AI Image Generator</h1>
-    <p class="subtitle">RunPod & ComfyUI Pipeline</p>
+<div class="ambient-glow"></div>
 
-    <form id="gen-form">
-        <div class="form-group">
-            <textarea id="prompt" name="prompt" placeholder="Describe the image you want to create..." required></textarea>
-            <button type="submit" id="submit-btn" class="btn-submit">
-                <span>Generate Image</span>
-            </button>
-        </div>
-    </form>
-
-    <div class="status-box">
-        <div id="spinner" class="spinner"></div>
-        <span id="status-text"></span>
+<!-- Apple Navigation Bar -->
+<header class="apple-nav">
+    <div class="nav-brand">
+        <!-- Minimalist Apple Logo -->
+        <svg class="apple-icon" viewBox="0 0 170 170">
+            <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.6-7.79-11.72-14.24-6.85-10.76-12.22-22.95-16.12-36.57-3.9-13.62-5.85-26.49-5.85-38.61 0-14.79 3.82-27.18 11.45-37.17 7.64-9.99 17.1-15.13 28.39-15.42 4.9.12 10.45 1.45 16.65 3.99 6.2 2.54 10.37 3.87 12.52 3.99 1.74-.12 6.13-1.57 13.16-4.35 7.04-2.78 13.06-4.04 18.06-3.79 13.04.66 23.36 5.38 30.96 14.16-11.53 6.96-17.19 16.71-17 29.24.2 9.78 3.99 18.04 11.37 24.78 7.38 6.74 16.29 10.51 26.73 11.31-2.39 7.39-5.32 14.78-8.8 22.17zM119.22 33.15c0-7.39 2.66-14.42 7.98-21.09 5.32-6.67 11.96-10.72 19.92-12.15.22 1.3.33 2.45.33 3.44 0 7.39-2.83 14.53-8.49 21.43-5.65 6.9-12.44 10.87-20.37 11.9-.22-1.3-.33-2.39-.33-3.26l.96-.27z"/>
+        </svg>
+        <span class="brand-title">AI Studio</span>
+        <span class="brand-badge">Lens BF16</span>
     </div>
 
-    <div id="result-container" class="result-container">
-        <div class="img-wrapper">
-            <img id="output-image" src="" alt="Generated Result">
+    <div class="nav-status">
+        <div id="status-pill" class="status-chip" title="Checking RunPod connection...">
+            <span id="status-dot" class="status-dot"></span>
+            <span id="status-label">Checking RunPod...</span>
         </div>
-        <button id="download-btn" class="btn-download">
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"></path>
+    </div>
+</header>
+
+<main class="main-content">
+
+    <!-- Hero Title -->
+    <section class="hero-section">
+        <span class="hero-eyebrow">Neural Diffusion Studio</span>
+        <h1 class="hero-title">Pro imagery. Pure imagination.</h1>
+        <p class="hero-subtitle">
+            Harness high-precision diffusion models running directly on your dedicated RunPod GPU pipeline.
+        </p>
+    </section>
+
+    <!-- Model Sync / Download Banner -->
+    <div id="sync-banner" class="sync-banner">
+        <div class="sync-left">
+            <div class="apple-spinner" style="border-top-color: var(--apple-orange);"></div>
+            <span id="sync-banner-text">Synchronizing pipeline models to RunPod storage...</span>
+        </div>
+        <div class="sync-progress-bar-wrap">
+            <div id="sync-banner-fill" class="sync-progress-bar-fill"></div>
+        </div>
+    </div>
+
+    <!-- Main Generator Card -->
+    <section class="studio-card">
+        <form id="gen-form">
+            {% csrf_token %}
+            <div class="prompt-wrapper">
+                <div class="prompt-header">
+                    <label for="prompt" class="prompt-label">Describe your vision</label>
+                    <span id="char-counter" class="char-counter">0 / 3000</span>
+                </div>
+                <textarea 
+                    id="prompt" 
+                    name="prompt" 
+                    class="prompt-textarea"
+                    placeholder="E.g. A futuristic glass pavilion nestled in a Nordic pine forest at twilight, architectural photography, soft moody interior illumination, fog rolling over stone paths, 8k resolution..." 
+                    maxlength="3000"
+                    required
+                ></textarea>
+            </div>
+
+            <!-- Aspect Ratio Selector -->
+            <div class="control-group" style="margin-top: 18px;">
+                <label class="control-label">Aspect Ratio</label>
+                <div class="segmented-control" id="aspect-ratio-selector">
+                    <button type="button" class="seg-btn active" data-ratio="1:1 (Square)">1:1 Square</button>
+                    <button type="button" class="seg-btn" data-ratio="16:9 (Landscape)">16:9 Widescreen</button>
+                    <button type="button" class="seg-btn" data-ratio="9:16 (Portrait)">9:16 Story</button>
+                    <button type="button" class="seg-btn" data-ratio="4:3 (Landscape)">4:3 Classic</button>
+                    <button type="button" class="seg-btn" data-ratio="3:4 (Portrait)">3:4 Portrait</button>
+                </div>
+            </div>
+
+            <!-- Inspiration Pills -->
+            <div class="suggestions-group" style="margin-top: 18px;">
+                <span class="suggestions-title">Inspiration starters</span>
+                <div class="chips-container">
+                    <span class="chip-pill" data-prompt="A delicious juicy rustic burger on a wooden surface, glossy golden bun, thick beef patty, melted cheddar dripping down the sides, crispy bacon, fresh lettuce, tomato slices, dramatic moody lighting, rustic food styling, ultra-detailed food photography">🍔 Artisan Burger</span>
+                    <span class="chip-pill" data-prompt="Cinematic close-up portrait of an astronaut looking at Earth reflection on the helmet visor, cosmic starry background, anamorphic lens flare, photorealistic 8k, Kodak Vision3 500T 35mm film grain">👨‍🚀 Astronaut Visor</span>
+                    <span class="chip-pill" data-prompt="Minimalist Scandinavian villa living room, floor-to-ceiling glass windows overlooking misty autumn fjords, warm oak timber, soft ambient glow, high-end Architectural Digest photography">🏡 Minimalist Villa</span>
+                    <span class="chip-pill" data-prompt="Cyberpunk Neo-Tokyo alleyway illuminated by vibrant holographic neon signs, rain slicked asphalt reflecting emerald and magenta reflections, atmospheric fog, photorealistic octane render">🌆 Neo-Tokyo Alley</span>
+                    <span class="chip-pill" data-prompt="Hyperrealistic macro shot of an exotic iridescent chameleon eye, vibrant teal and gold scales, crystalline water droplets, ultra-sharp depth of field, National Geographic nature photography">🦎 Iridescent Macro</span>
+                </div>
+            </div>
+
+            <!-- Action Bar -->
+            <div class="action-row">
+                <span class="keyboard-hint">
+                    Press <kbd>⌘</kbd> + <kbd>Return</kbd> to generate
+                </span>
+                <button type="submit" id="submit-btn" class="btn-apple-primary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                    <span>Generate Image</span>
+                </button>
+            </div>
+        </form>
+
+        <!-- Generation Progress Box -->
+        <div id="progress-box" class="progress-box">
+            <div class="progress-header">
+                <div class="progress-stage">
+                    <div class="apple-spinner"></div>
+                    <span id="stage-text">Connecting to RunPod GPU...</span>
+                </div>
+                <span id="timer-text" class="progress-time">00:00</span>
+            </div>
+            <div class="apple-progress-bar">
+                <div class="apple-progress-indicator"></div>
+            </div>
+        </div>
+
+        <!-- Error Card -->
+        <div id="error-card" class="error-card">
+            <svg class="error-icon" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
             </svg>
-            Download High-Res
-        </button>
-    </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <strong style="color: #ff8577;">Generation Notice</strong>
+                <span id="error-message">An error occurred while generating the image.</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Showcase Section (Result) -->
+    <section id="showcase-section" class="showcase-section">
+        <div class="image-frame-container" id="image-frame">
+            <img id="result-img" class="result-image" src="" alt="High-Resolution AI Render" title="Click to view full screen">
+        </div>
+        <div class="image-toolbar">
+            <div id="result-prompt-pill" class="prompt-preview-pill" title="Click to copy prompt"></div>
+            <div class="toolbar-buttons">
+                <button type="button" id="copy-prompt-btn" class="btn-apple-secondary" title="Copy prompt">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>Copy Prompt</span>
+                </button>
+                <button type="button" id="lightbox-btn" class="btn-apple-secondary" title="Full screen">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <polyline points="9 21 3 21 3 15"></polyline>
+                        <line x1="21" y1="3" x2="14" y2="10"></line>
+                        <line x1="3" y1="21" x2="10" y2="14"></line>
+                    </svg>
+                    <span>Enlarge</span>
+                </button>
+                <a id="download-link" class="btn-apple-primary" style="padding: 9px 20px; font-size: 13px;" download="lens-ai-studio.png" href="#">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>Download</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Recent History Gallery -->
+    <section id="history-section" class="history-section">
+        <div class="history-title">
+            <span>Recent Creations</span>
+            <button type="button" id="clear-history-btn" class="history-clear-btn">Clear Gallery</button>
+        </div>
+        <div id="history-grid" class="history-grid"></div>
+    </section>
+
+</main>
+
+<!-- Lightbox Modal -->
+<div id="lightbox-modal" class="lightbox-modal">
+    <button type="button" class="lightbox-close" id="lightbox-close">&times;</button>
+    <img id="lightbox-img" src="" alt="Full Resolution Image">
 </div>
 
+<!-- Toast Feedback -->
+<div id="toast" class="toast"></div>
+
+<!-- Footer -->
+<footer class="apple-footer">
+    <span>Designed for RunPod GPU Cluster • Lens BF16 Architecture</span>
+    <div class="footer-links">
+        <span id="footer-vram">VRAM: Initializing...</span>
+        <span>•</span>
+        <span id="footer-engine">ComfyUI v0.30 Engine</span>
+    </div>
+</footer>
+
 <script>
-    let pollInterval = null;
+    // State
+    let selectedAspectRatio = "1:1 (Square)";
+    let pollTimer = null;
+    let elapsedTimer = null;
+    let elapsedSeconds = 0;
+    let currentImageUrl = "";
+    let currentPromptText = "";
 
+    // DOM Elements
     const form = document.getElementById('gen-form');
+    const promptInput = document.getElementById('prompt');
+    const charCounter = document.getElementById('char-counter');
     const submitBtn = document.getElementById('submit-btn');
-    const statusText = document.getElementById('status-text');
-    const spinner = document.getElementById('spinner');
-    const resultContainer = document.getElementById('result-container');
-    const outputImage = document.getElementById('output-image');
-    const downloadBtn = document.getElementById('download-btn');
+    const aspectButtons = document.querySelectorAll('#aspect-ratio-selector .seg-btn');
+    const chipPills = document.querySelectorAll('.chip-pill');
+    
+    // Status Elements
+    const statusPill = document.getElementById('status-pill');
+    const statusDot = document.getElementById('status-dot');
+    const statusLabel = document.getElementById('status-label');
+    const syncBanner = document.getElementById('sync-banner');
+    const syncBannerText = document.getElementById('sync-banner-text');
+    const syncBannerFill = document.getElementById('sync-banner-fill');
+    const footerVram = document.getElementById('footer-vram');
+    
+    // Progress & Result Elements
+    const progressBox = document.getElementById('progress-box');
+    const stageText = document.getElementById('stage-text');
+    const timerText = document.getElementById('timer-text');
+    const errorCard = document.getElementById('error-card');
+    const errorMessage = document.getElementById('error-message');
+    const showcaseSection = document.getElementById('showcase-section');
+    const resultImg = document.getElementById('result-img');
+    const resultPromptPill = document.getElementById('result-prompt-pill');
+    const downloadLink = document.getElementById('download-link');
+    const copyPromptBtn = document.getElementById('copy-prompt-btn');
+    const lightboxBtn = document.getElementById('lightbox-btn');
+    const lightboxModal = document.getElementById('lightbox-modal');
+    const lightboxImg = document.getElementById('lightbox-img');
+    const lightboxClose = document.getElementById('lightbox-close');
+    const toast = document.getElementById('toast');
+    
+    // History Elements
+    const historySection = document.getElementById('history-section');
+    const historyGrid = document.getElementById('history-grid');
+    const clearHistoryBtn = document.getElementById('clear-history-btn');
 
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        if (pollInterval) clearInterval(pollInterval);
+    // 1. Initialize Prompt Counter & Input Listeners
+    promptInput.addEventListener('input', () => {
+        const len = promptInput.value.length;
+        charCounter.innerText = `${len} / 3000`;
+    });
 
-        // UI Reset
-        submitBtn.disabled = true;
-        spinner.style.display = 'block';
-        statusText.innerText = 'Submitting prompt to RunPod...';
-        resultContainer.style.display = 'none';
+    // 2. Aspect Ratio Segmented Control
+    aspectButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            aspectButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedAspectRatio = btn.dataset.ratio;
+        });
+    });
 
-        const formData = new FormData();
-        formData.append('prompt', document.getElementById('prompt').value);
+    // 3. Inspiration Chips
+    chipPills.forEach(chip => {
+        chip.addEventListener('click', () => {
+            promptInput.value = chip.dataset.prompt;
+            charCounter.innerText = `${promptInput.value.length} / 3000`;
+            promptInput.focus();
+            showToast("Starter prompt loaded");
+        });
+    });
 
-        try {
-            const response = await fetch('/generate/', { method: 'POST', body: formData });
-            const data = await response.json();
-
-            if (data.status === 'success' && data.prompt_id) {
-                statusText.innerText = `Queued (${data.prompt_id.substring(0, 8)}...). Generating...`;
-                pollStatus(data.prompt_id);
-            } else {
-                showError(data.message || 'Failed to submit job.');
+    // 4. Keyboard Shortcuts: Cmd+Enter or Ctrl+Enter to submit
+    window.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            if (!submitBtn.disabled && promptInput.value.trim().length > 0) {
+                e.preventDefault();
+                form.dispatchEvent(new Event('submit', { cancelable: true }));
             }
-        } catch (err) {
-            showError('Network error connecting to Django backend.');
+        }
+        if (e.key === 'Escape' && lightboxModal.classList.contains('visible')) {
+            closeLightbox();
         }
     });
 
-    function pollStatus(promptId) {
-        pollInterval = setInterval(async () => {
+    // 5. System Status Poller
+    async function checkSystemStatus() {
+        try {
+            const res = await fetch('/system-status/');
+            if (!res.ok) throw new Error('Status endpoint unavailable');
+            const data = await res.json();
+
+            if (data.connected) {
+                const gpu = data.gpu_name.replace('cuda:0 ', '').replace(' : cudaMallocAsync', '');
+                footerVram.innerText = `GPU: ${gpu} (${data.vram_free_gb} / ${data.vram_total_gb} GB VRAM)`;
+
+                // Check active downloads
+                const downloads = data.downloads || {};
+                const activeDls = Object.entries(downloads).filter(([_, d]) => d.status === 'downloading' || d.status === 'queued');
+
+                if (activeDls.length > 0) {
+                    const currentDl = activeDls[0][1];
+                    const progress = Math.round(currentDl.progress || 0);
+                    const fname = currentDl.filename || 'models';
+
+                    statusDot.className = 'status-dot syncing';
+                    statusLabel.innerText = `Syncing ${fname} (${progress}%)`;
+                    
+                    syncBanner.classList.add('visible');
+                    syncBannerText.innerText = `Downloading model to RunPod: ${fname} (${progress}%)`;
+                    syncBannerFill.style.width = `${progress}%`;
+                } else {
+                    syncBanner.classList.remove('visible');
+                    statusDot.className = 'status-dot active';
+                    statusLabel.innerText = `${gpu} Connected`;
+                }
+            } else {
+                statusDot.className = 'status-dot error';
+                statusLabel.innerText = 'RunPod Pod Disconnected';
+                footerVram.innerText = 'Pod Offline';
+            }
+        } catch (err) {
+            statusDot.className = 'status-dot error';
+            statusLabel.innerText = 'Connection Error';
+        }
+    }
+
+    // Poll system status on load and periodically
+    checkSystemStatus();
+    setInterval(checkSystemStatus, 4000);
+
+    // 6. Form Submission Handler
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const promptText = promptInput.value.trim();
+        if (!promptText) return;
+
+        // Reset UI
+        if (pollTimer) clearInterval(pollTimer);
+        if (elapsedTimer) clearInterval(elapsedTimer);
+        hideError();
+        
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `
+            <div class="apple-spinner"></div>
+            <span>Synthesizing...</span>
+        `;
+        progressBox.classList.add('visible');
+        stageText.innerText = "Dispatching pipeline to RunPod GPU...";
+        
+        elapsedSeconds = 0;
+        timerText.innerText = "00:00";
+        elapsedTimer = setInterval(() => {
+            elapsedSeconds++;
+            const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
+            const secs = String(elapsedSeconds % 60).padStart(2, '0');
+            timerText.innerText = `${mins}:${secs}`;
+        }, 1000);
+
+        // Prepare request
+        const formData = new FormData(form);
+        formData.set('prompt', promptText);
+        formData.set('aspect_ratio', selectedAspectRatio);
+
+        try {
+            const response = await fetch('/generate/', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === 'success' && data.prompt_id) {
+                stageText.innerText = `Job submitted (${data.prompt_id.substring(0, 8)}...). Initializing neural network...`;
+                pollGeneration(data.prompt_id, promptText);
+            } else {
+                handleFailure(data.message || 'Prompt rejected by RunPod ComfyUI.');
+            }
+        } catch (err) {
+            handleFailure('Network failure communicating with generation backend.');
+        }
+    });
+
+    // 7. Polling Status
+    function pollGeneration(promptId, promptText) {
+        let attempts = 0;
+        pollTimer = setInterval(async () => {
+            attempts++;
             try {
                 const res = await fetch(`/status/${promptId}/`);
                 const data = await res.json();
 
-                if (data.status === 'completed') {
-                    clearInterval(pollInterval);
-                    spinner.style.display = 'none';
-                    statusText.innerText = '';
-                    submitBtn.disabled = false;
-
-                    // Render output
-                    outputImage.src = data.image_url;
-                    resultContainer.style.display = 'flex';
-
-                    // Set up download listener via Blob fetch
-                    downloadBtn.onclick = () => downloadImage(data.image_url);
+                if (data.status === 'completed' && data.image_url) {
+                    clearInterval(pollTimer);
+                    clearInterval(elapsedTimer);
+                    handleSuccess(data.image_url, promptText);
                 } else if (data.status === 'error') {
-                    clearInterval(pollInterval);
-                    showError(data.message);
+                    clearInterval(pollTimer);
+                    clearInterval(elapsedTimer);
+                    handleFailure(data.message || 'Generation aborted on GPU.');
+                } else if (data.status === 'processing') {
+                    if (data.stage === 'rendering') {
+                        stageText.innerText = 'Calculating latents & denoising steps...';
+                    } else if (data.stage === 'queued') {
+                        stageText.innerText = data.message || 'Waiting in GPU queue...';
+                    } else {
+                        stageText.innerText = 'Decoding latent image with Flux VAE...';
+                    }
                 }
             } catch (err) {
-                console.error("Polling error:", err);
+                console.warn('Transient polling error:', err);
             }
-        }, 2000);
+        }, 1800);
+    }
+
+    // 8. Handle Generation Success
+    function handleSuccess(imageUrl, promptText) {
+        progressBox.classList.remove('visible');
+        resetSubmitBtn();
+
+        currentImageUrl = imageUrl;
+        currentPromptText = promptText;
+
+        resultImg.src = imageUrl;
+        resultPromptPill.innerText = `"${promptText}"`;
+        resultPromptPill.onclick = () => copyText(promptText);
+        
+        // Setup direct download href
+        downloadLink.onclick = (e) => {
+            e.preventDefault();
+            downloadImageDirect(imageUrl);
+        };
+
+        showcaseSection.classList.add('visible');
+        showcaseSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        // Save to History
+        saveToHistory(imageUrl, promptText);
+        showToast("Image generation complete");
+    }
+
+    // 9. Handle Failure
+    function handleFailure(msg) {
+        clearInterval(pollTimer);
+        clearInterval(elapsedTimer);
+        progressBox.classList.remove('visible');
+        resetSubmitBtn();
+        showError(msg);
+    }
+
+    function resetSubmitBtn() {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span>Generate Image</span>
+        `;
     }
 
     function showError(msg) {
-        spinner.style.display = 'none';
-        submitBtn.disabled = false;
-        statusText.innerText = `Error: ${msg}`;
+        errorMessage.innerText = msg;
+        errorCard.classList.add('visible');
     }
 
-    async function downloadImage(url) {
+    function hideError() {
+        errorCard.classList.remove('visible');
+    }
+
+    // 10. Direct Image Downloader with Blob fallback
+    async function downloadImageDirect(url) {
+        showToast("Preparing download...");
         try {
-            const response = await fetch(url);
-            const blob = await response.blob();
+            const resp = await fetch(url);
+            const blob = await resp.blob();
             const blobUrl = URL.createObjectURL(blob);
             
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = `generated-${Date.now()}.png`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            const tempLink = document.createElement('a');
+            tempLink.href = blobUrl;
+            tempLink.download = `studio-${Date.now()}.png`;
+            document.body.appendChild(tempLink);
+            tempLink.click();
+            document.body.removeChild(tempLink);
             URL.revokeObjectURL(blobUrl);
+            showToast("Download started");
         } catch (err) {
             // Fallback for CORS limits
             window.open(url, '_blank');
         }
     }
+
+    // 11. Copy Prompt
+    copyPromptBtn.addEventListener('click', () => {
+        if (currentPromptText) {
+            copyText(currentPromptText);
+        }
+    });
+
+    function copyText(txt) {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(txt);
+        } else {
+            const textarea = document.createElement('textarea');
+            textarea.value = txt;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+        showToast("Prompt copied to clipboard");
+    }
+
+    // 12. Lightbox Modal
+    resultImg.addEventListener('click', openLightbox);
+    lightboxBtn.addEventListener('click', openLightbox);
+    lightboxClose.addEventListener('click', closeLightbox);
+    lightboxModal.addEventListener('click', (e) => {
+        if (e.target === lightboxModal) closeLightbox();
+    });
+
+    function openLightbox() {
+        if (currentImageUrl) {
+            lightboxImg.src = currentImageUrl;
+            lightboxModal.classList.add('visible');
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    function closeLightbox() {
+        lightboxModal.classList.remove('visible');
+        document.body.style.overflow = '';
+    }
+
+    // 13. Toast System
+    let toastTimeout = null;
+    function showToast(msg) {
+        if (toastTimeout) clearTimeout(toastTimeout);
+        toast.innerText = msg;
+        toast.classList.add('visible');
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove('visible');
+        }, 3000);
+    }
+
+    // 14. History Gallery in LocalStorage
+    const HISTORY_KEY = 'ai_studio_creations';
+
+    function loadHistory() {
+        try {
+            const raw = localStorage.getItem(HISTORY_KEY);
+            const items = raw ? JSON.parse(raw) : [];
+            if (items.length > 0) {
+                historySection.classList.add('visible');
+                historyGrid.innerHTML = '';
+                items.forEach(item => {
+                    const el = document.createElement('div');
+                    el.className = 'history-item';
+                    el.title = item.prompt;
+                    el.innerHTML = `<img src="${item.url}" alt="Past render" loading="lazy">`;
+                    el.onclick = () => {
+                        currentImageUrl = item.url;
+                        currentPromptText = item.prompt;
+                        resultImg.src = item.url;
+                        resultPromptPill.innerText = `"${item.prompt}"`;
+                        resultPromptPill.onclick = () => copyText(item.prompt);
+                        promptInput.value = item.prompt;
+                        charCounter.innerText = `${item.prompt.length} / 3000`;
+                        showcaseSection.classList.add('visible');
+                        showcaseSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    };
+                    historyGrid.appendChild(el);
+                });
+            } else {
+                historySection.classList.remove('visible');
+            }
+        } catch (e) {
+            console.warn('History storage access error:', e);
+        }
+    }
+
+    function saveToHistory(url, prompt) {
+        try {
+            const raw = localStorage.getItem(HISTORY_KEY);
+            let items = raw ? JSON.parse(raw) : [];
+            items.unshift({ url, prompt, timestamp: Date.now() });
+            if (items.length > 12) items = items.slice(0, 12);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(items));
+            loadHistory();
+        } catch (e) {}
+    }
+
+    clearHistoryBtn.addEventListener('click', () => {
+        localStorage.removeItem(HISTORY_KEY);
+        loadHistory();
+        showToast("Gallery cleared");
+    });
+
+    // Initialize history
+    loadHistory();
 </script>
 
 </body>

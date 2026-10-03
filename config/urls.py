@@ -23,4 +23,5 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('generate/', views.generate_image, name='generate'),
     path('status/<str:prompt_id>/', views.check_status, name='check_status'),
+    path('system-status/', views.system_status, name='system_status'),
 ]

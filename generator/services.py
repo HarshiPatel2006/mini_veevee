@@ -92,6 +92,20 @@ def get_runpod_client():
 
 
 
+_CACHED_ACTIVE_POD = None
+_CACHED_ACTIVE_POD_TIME = 0
+_ACTIVE_POD_CACHE_TTL = 5.0
+_ACTIVE_POD_LOCK = threading.Lock()
+
+
+def invalidate_active_pod_cache():
+    """Invalidate active pod cache so subsequent calls perform a fresh search."""
+    global _CACHED_ACTIVE_POD, _CACHED_ACTIVE_POD_TIME
+    with _ACTIVE_POD_LOCK:
+        _CACHED_ACTIVE_POD = None
+        _CACHED_ACTIVE_POD_TIME = 0
+
+
 def terminate_pod(pod_id):
     """Terminate a specific RunPod pod immediately to avoid extra costs."""
     if not pod_id:
@@ -103,6 +117,7 @@ def terminate_pod(pod_id):
         logger.info(f"[RunPod] Terminating pod: {pod_id}")
         rp.terminate_pod(pod_id)
         ACTIVE_POD_IDS.discard(pod_id)
+        invalidate_active_pod_cache()
         logger.info(f"[RunPod] Pod {pod_id} successfully terminated.")
         return True
     except Exception as e:
@@ -115,6 +130,7 @@ def terminate_all_active_pods():
     pods_to_kill = list(ACTIVE_POD_IDS)
     for pid in pods_to_kill:
         terminate_pod(pid)
+    invalidate_active_pod_cache()
 
 
 # Register exit handlers so closing the terminal / Django process terminates the pods immediately
@@ -172,14 +188,21 @@ _watchdog_thread.start()
 
 
 def get_pod_comfy_url(pod_id=None):
-    """Construct proxy URL for a pod ID, or return fallback COMFY_URL."""
+    """Construct proxy URL for a pod ID, or return active pod URL / fallback COMFY_URL."""
     if pod_id:
         return f"https://{pod_id}-8188.proxy.runpod.net"
+    with _ACTIVE_POD_LOCK:
+        if _CACHED_ACTIVE_POD and _CACHED_ACTIVE_POD[1]:
+            return _CACHED_ACTIVE_POD[1]
+    for pid in list(ACTIVE_POD_IDS):
+        return f"https://{pid}-8188.proxy.runpod.net"
     return os.environ.get("COMFY_URL", DEFAULT_COMFY_URL).rstrip("/")
 
 
 def check_pod_health(comfy_url):
     """Check if ComfyUI on pod is responsive and return hardware stats."""
+    if not comfy_url:
+        return False, "No ComfyUI URL provided"
     try:
         res = requests.get(f"{comfy_url}/system_stats", timeout=5)
         if res.status_code == 200:
@@ -197,6 +220,104 @@ def check_pod_health(comfy_url):
     except Exception as e:
         return False, str(e)
     return False, "Non-200 status code"
+
+
+def get_active_running_pod(force_refresh=False):
+    """
+    Find any pod that is actively running to fulfill generation requests.
+    If any pod is actively running, returns (pod_id, pod_url).
+    If no pod is active, returns (None, None).
+    """
+    global _CACHED_ACTIVE_POD, _CACHED_ACTIVE_POD_TIME
+
+    if not force_refresh:
+        with _ACTIVE_POD_LOCK:
+            if _CACHED_ACTIVE_POD is not None and (time.time() - _CACHED_ACTIVE_POD_TIME < _ACTIVE_POD_CACHE_TTL):
+                cached_id, cached_url = _CACHED_ACTIVE_POD
+                if cached_url:
+                    healthy, _ = check_pod_health(cached_url)
+                    if healthy:
+                        return cached_id, cached_url
+                else:
+                    return None, None
+
+    # 1. Check in-memory tracked ACTIVE_POD_IDS first
+    for pid in list(ACTIVE_POD_IDS):
+        url = get_pod_comfy_url(pid)
+        healthy, _ = check_pod_health(url)
+        if healthy:
+            with _ACTIVE_POD_LOCK:
+                _CACHED_ACTIVE_POD = (pid, url)
+                _CACHED_ACTIVE_POD_TIME = time.time()
+            return pid, url
+
+    # 2. Query RunPod API for any actively running pods on the user's account
+    rp = get_runpod_client()
+    if rp:
+        try:
+            pods = rp.get_pods()
+            if isinstance(pods, list):
+                running_pods = []
+                for p in pods:
+                    desired_status = (p.get("desiredStatus") or "").upper()
+                    has_runtime = p.get("runtime") is not None
+                    if desired_status == "RUNNING" or (has_runtime and desired_status != "EXITED"):
+                        running_pods.append(p)
+
+                # Prioritize: Check if any running pod is already responsive to ComfyUI
+                for p in running_pods:
+                    pid = p.get("id")
+                    if not pid:
+                        continue
+                    url = f"https://{pid}-8188.proxy.runpod.net"
+                    healthy, _ = check_pod_health(url)
+                    if healthy:
+                        logger.info(f"[RunPod] Actively running healthy pod found: {pid}")
+                        ACTIVE_POD_IDS.add(pid)
+                        with _ACTIVE_POD_LOCK:
+                            _CACHED_ACTIVE_POD = (pid, url)
+                            _CACHED_ACTIVE_POD_TIME = time.time()
+                        return pid, url
+
+                # If running pods exist but ComfyUI hasn't responded yet (container initializing)
+                for p in running_pods:
+                    pid = p.get("id")
+                    if not pid:
+                        continue
+                    name = (p.get("name") or "").lower()
+                    image = (p.get("imageName") or "").lower()
+                    ports = str(p.get("ports") or "")
+                    if "veevee" in name or "comfyui" in image or "8188" in ports:
+                        url = f"https://{pid}-8188.proxy.runpod.net"
+                        logger.info(f"[RunPod] Running pod {pid} detected, polling ComfyUI readiness...")
+                        for _ in range(5):
+                            time.sleep(3)
+                            healthy, _ = check_pod_health(url)
+                            if healthy:
+                                logger.info(f"[RunPod] Pod {pid} became reachable!")
+                                ACTIVE_POD_IDS.add(pid)
+                                with _ACTIVE_POD_LOCK:
+                                    _CACHED_ACTIVE_POD = (pid, url)
+                                    _CACHED_ACTIVE_POD_TIME = time.time()
+                                return pid, url
+        except Exception as e:
+            logger.warning(f"[RunPod] Error querying pods from RunPod API: {e}")
+
+    # 3. Check custom COMFY_URL in env if explicitly configured
+    custom_url = os.environ.get("COMFY_URL")
+    if custom_url:
+        custom_url = custom_url.rstrip("/")
+        healthy, _ = check_pod_health(custom_url)
+        if healthy:
+            with _ACTIVE_POD_LOCK:
+                _CACHED_ACTIVE_POD = (None, custom_url)
+                _CACHED_ACTIVE_POD_TIME = time.time()
+            return None, custom_url
+
+    with _ACTIVE_POD_LOCK:
+        _CACHED_ACTIVE_POD = (None, None)
+        _CACHED_ACTIVE_POD_TIME = time.time()
+    return None, None
 
 
 def get_loaded_models(comfy_url):
@@ -352,6 +473,7 @@ def provision_pod(gpu_candidates=None, task_callback=None):
 
     pod_id = pod["id"]
     ACTIVE_POD_IDS.add(pod_id)
+    invalidate_active_pod_cache()
     pod_url = get_pod_comfy_url(pod_id)
 
     # Poll until ComfyUI proxy responds
@@ -468,23 +590,30 @@ def process_generation_on_runpod(task_id, auto_terminate=False):
             update_progress(5, "Connecting to RunPod GPU...")
 
             # 1. Determine target pod endpoint
-            # First check if the fallback COMFY_URL is online and healthy
-            pod_url = get_pod_comfy_url()
-            healthy, _ = check_pod_health(pod_url)
-            api_key = get_runpod_api_key()
+            # Rule: If any pod is actively running then take that pod only to fulfill the request.
+            # If there is not any active pod, only then start a new one.
+            update_progress(8, "Checking for actively running GPU pod...")
+            pod_id, pod_url = get_active_running_pod(force_refresh=True)
+            provisioned_here = False
 
-            if not healthy and api_key:
-                # Provision a new pod on-demand with preferred GPUs
-                update_progress(10, "Deploying GPU pod (RTX PRO 4000 / RTX 3090 / L4)...")
+            if pod_id or pod_url:
+                logger.info(f"[RunPod] Actively running pod found ({pod_id or pod_url}). Taking this pod to fulfill request.")
+                update_progress(15, f"Using active GPU pod ({pod_id or 'cloud'})...")
+                task.pod_id = pod_id
+                task.save()
+            else:
+                api_key = get_runpod_api_key()
+                if not api_key:
+                    raise Exception(
+                        "No actively running pod found and RUNPOD_API_KEY is not configured to deploy a new one. "
+                        "Please configure RUNPOD_API_KEY in .env or configure COMFY_URL."
+                    )
+                logger.info("[RunPod] No active running pod found. Deploying a new GPU pod on-demand...")
+                update_progress(10, "No active pod found. Deploying new GPU pod (RTX PRO 4000 / RTX 3090 / L4)...")
                 pod_id, pod_url = provision_pod(PREFERRED_GPUS, update_progress)
                 provisioned_here = True
                 task.pod_id = pod_id
                 task.save()
-            elif not healthy:
-                raise Exception(
-                    "Default ComfyUI pod is unreachable and RUNPOD_API_KEY is not set. "
-                    "Please provide a valid RUNPOD_API_KEY in .env or configure COMFY_URL."
-                )
 
             # 2. Ensure models are loaded and ready
             task.status = 'DOWNLOADING'
@@ -579,7 +708,8 @@ def process_generation_on_runpod(task_id, auto_terminate=False):
                 _ACTIVE_GENERATION_COUNT = max(0, _ACTIVE_GENERATION_COUNT - 1)
 
             # Auto-terminate if requested to save costs
-            if auto_terminate and pod_id and provisioned_here:
+            if auto_terminate and pod_id and provisioned_here and _ACTIVE_GENERATION_COUNT == 0:
+                logger.info(f"[Lifecycle] Auto-terminating newly provisioned pod {pod_id} after task completion.")
                 terminate_pod(pod_id)
 
     threading.Thread(target=worker, daemon=True).start()

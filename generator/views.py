@@ -10,6 +10,7 @@ from .services import (
     check_pod_health,
     get_loaded_models,
     get_pod_comfy_url,
+    get_active_running_pod,
     terminate_all_active_pods,
     terminate_pod,
     record_heartbeat,
@@ -195,7 +196,9 @@ def api_prompts(request):
 
 def api_system_status(request):
     """Check live RunPod pod telemetry, loaded models, and VRAM stats."""
-    pod_url = get_pod_comfy_url()
+    pod_id, pod_url = get_active_running_pod()
+    if not pod_url:
+        pod_url = get_pod_comfy_url()
     healthy, stats = check_pod_health(pod_url)
 
     models = get_loaded_models(pod_url) if healthy else {"unet": [], "clip": [], "vae": []}
@@ -205,12 +208,13 @@ def api_system_status(request):
 
     return JsonResponse({
         "connected": healthy,
-        "pod_url": pod_url,
+        "pod_id": pod_id,
+        "pod_url": pod_url if healthy else None,
         "gpu_name": stats.get("gpu_name", "RunPod Cloud GPU") if healthy else "Cloud GPU Offline",
         "vram_total_gb": stats.get("vram_total", 0) if healthy else 0,
         "vram_free_gb": stats.get("vram_free", 0) if healthy else 0,
         "models_ready": has_unet and has_clip and has_vae,
-        "active_pods_count": len(ACTIVE_POD_IDS),
+        "active_pods_count": len(ACTIVE_POD_IDS) if (healthy or len(ACTIVE_POD_IDS) > 0) else (1 if pod_id else 0),
         "available_models": models
     })
 
@@ -303,8 +307,16 @@ def api_terminate_pod(request):
 
 @csrf_exempt
 def api_provision_pod(request):
-    """Manual trigger to spin up a pod with RTX 4000 Ada / RTX 3090 / L4."""
+    """Manual trigger to spin up a pod with RTX 4000 Ada / RTX 3090 / L4 (or reuse actively running pod)."""
     try:
+        active_id, active_url = get_active_running_pod(force_refresh=True)
+        if active_id and active_url:
+            return JsonResponse({
+                "status": "ok",
+                "pod_id": active_id,
+                "pod_url": active_url,
+                "message": f"Active GPU pod {active_id} is already running and ready."
+            })
         pod_id, pod_url = provision_pod(PREFERRED_GPUS)
         return JsonResponse({
             "status": "ok",

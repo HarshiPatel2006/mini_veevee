@@ -2,54 +2,142 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% if task.status != 'COMPLETED' and task.status != 'FAILED' %}
-        <meta http-equiv="refresh" content="4">
+        <meta http-equiv="refresh" content="3">
     {% endif %}
-    <title>Task #{{ task.id }} Status</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Task #{{ task.id }} — VEEVEE Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-page: #000000;
+            --bg-card: rgba(28, 28, 30, 0.75);
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --text-primary: #f5f5f7;
+            --text-secondary: #86868b;
+            --apple-blue: #0071e3;
+            --apple-green: #30d158;
+            --apple-red: #ff453a;
+            --apple-orange: #ff9f0a;
+            --font-stack: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+            --radius-card: 20px;
+            --radius-pill: 980px;
+        }
+
+        body {
+            font-family: var(--font-stack);
+            background-color: var(--bg-page);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 32px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-card);
+            padding: 32px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: var(--radius-pill);
+            text-transform: uppercase;
+        }
+
+        .badge.COMPLETED { background: rgba(48, 209, 88, 0.15); color: var(--apple-green); }
+        .badge.FAILED { background: rgba(255, 69, 58, 0.15); color: var(--apple-red); }
+        .badge.GENERATING, .badge.DOWNLOADING, .badge.PROVISIONING, .badge.PENDING { 
+            background: rgba(255, 159, 10, 0.15); color: var(--apple-orange); 
+        }
+
+        .prompt-box {
+            background: rgba(18, 18, 20, 0.85);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+        }
+
+        .result-img {
+            max-width: 100%;
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+        }
+
+        .btn-link {
+            color: var(--apple-blue);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-link:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen p-8">
-    <div class="max-w-xl mx-auto bg-gray-800 p-6 rounded-xl shadow-lg border border-purple-500/30">
-        <h1 class="text-xl font-bold mb-2">Task #{{ task.id }} Execution Status</h1>
-        
-        <div class="mb-4">
-            <span class="text-gray-400">Status:</span>
-            <span class="font-bold uppercase {% if task.status == 'COMPLETED' %}text-green-400{% elif task.status == 'FAILED' %}text-red-400{% else %}text-yellow-400 animate-pulse{% endif %}">
-                {{ task.status }}
-            </span>
+<body>
+    <div class="card">
+        <div class="header">
+            <h1 style="font-size: 18px; font-weight: 600;">Task #{{ task.id }} Execution</h1>
+            <span class="badge {{ task.status }}">{{ task.status }}</span>
         </div>
 
-        <div class="mb-4">
-            <span class="text-gray-400">Prompt:</span>
-            <p class="bg-gray-700 p-2 rounded mt-1">{{ task.prompt }}</p>
+        <div class="prompt-box">
+            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">PROMPT:</div>
+            {{ task.prompt }}
         </div>
 
         {% if task.status == 'COMPLETED' %}
-            <div class="p-4 bg-green-900/30 border border-green-500 rounded text-center my-4">
-                <p class="text-green-300 font-bold mb-3">Generation Complete & Pod Safely Terminated!</p>
-                
+            <div style="text-align: center;">
                 {% if task.is_audio %}
-                    <audio controls class="w-full mt-2">
+                    <audio controls style="width: 100%; margin-top: 10px;">
                         <source src="{{ task.output_file.url }}" type="audio/mpeg">
-                        Your browser does not support the audio element.
                     </audio>
                 {% else %}
-                    <img src="{{ task.output_file.url }}" class="w-full rounded shadow-md max-h-96 object-contain mx-auto" alt="Generated Output">
+                    <img src="{{ task.output_file.url }}" class="result-img" alt="Generated Artwork">
                 {% endif %}
             </div>
         {% elif task.status == 'FAILED' %}
-            <div class="p-4 bg-red-900/40 border border-red-500 rounded my-4">
-                <p class="text-red-300 font-bold">Execution Error</p>
-                <p class="text-xs text-red-200 mt-1">{{ task.error_message }}</p>
+            <div style="background: rgba(255,69,58,0.1); border: 1px solid rgba(255,69,58,0.3); border-radius: 12px; padding: 14px;">
+                <p style="color: var(--apple-red); font-size: 13px; font-weight: 600;">Execution Error</p>
+                <p style="font-size: 12px; color: #ffb4af; margin-top: 4px;">{{ task.error_message }}</p>
             </div>
         {% else %}
-            <div class="p-4 bg-yellow-900/20 border border-yellow-500/50 rounded text-center my-4">
-                <div class="animate-spin inline-block w-6 h-6 border-2 border-current border-t-transparent text-yellow-400 rounded-full mb-2"></div>
-                <p class="text-yellow-400 text-sm">Provisioning Cloud Pod ➔ Running ComfyUI ➔ Fetching Output ➔ Closing Pod...</p>
+            <div style="text-align: center; padding: 24px;">
+                <p style="font-size: 14px; color: var(--apple-orange);">{{ task.status_detail|default:"Processing pipeline on GPU..." }}</p>
+                <p style="font-size: 11px; color: var(--text-secondary); margin-top: 6px;">Auto-refreshing status...</p>
             </div>
         {% endif %}
 
-        <a href="{% url 'index' %}" class="inline-block mt-4 text-purple-400 underline">&larr; Back to Generator</a>
+        <div style="margin-top: 8px;">
+            <a href="{% url 'index' %}" class="btn-link">← Return to Studio</a>
+        </div>
     </div>
 </body>
 </html>

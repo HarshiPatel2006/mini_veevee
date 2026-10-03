@@ -1,454 +1,572 @@
 # generator/services.py
 import os
+import sys
 import time
-import requests
+import json
+import random
+import logging
+import signal
+import atexit
 import threading
-import runpod
+import requests
+from pathlib import Path
+from django.conf import settings
 from django.core.files.base import ContentFile
+from dotenv import load_dotenv
 
+logger = logging.getLogger(__name__)
 
+# Load local .env if present
+env_path = Path(settings.BASE_DIR) / '.env'
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
 
-import os
-
-# REPLACE THIS:
-# RUNPOD_API_KEY = "rnp_xxxx_your_actual_key"
-
-# WITH THIS:
+# RunPod Configuration
 RUNPOD_API_KEY = os.environ.get("RUNPOD_API_KEY")
+DEFAULT_COMFY_URL = os.environ.get("COMFY_URL", "https://7a1raczqkrw81q-8188.proxy.runpod.net").rstrip("/")
 
-# generator/services.py
+# Target GPUs prioritized as requested: RTX PRO 4000, RTX 3090, L4
+PREFERRED_GPUS = [
+    "NVIDIA RTX PRO 4000 Blackwell",
+    "NVIDIA RTX 4000 Ada Generation",
+    "NVIDIA RTX 4000 SFF Ada Generation",
+    "NVIDIA GeForce RTX 3090",
+    "NVIDIA L4",
+]
+
+# Required models manifest for the Lens txt2img ComfyUI pipeline
+REQUIRED_MODELS = [
+    {
+        "name": "Diffusion Model (Lens BF16)",
+        "filename": "lens_bf16.safetensors",
+        "save_path": "diffusion_models",
+        "url": "https://huggingface.co/Comfy-Org/Lens/resolve/main/diffusion_models/lens_bf16.safetensors",
+        "type": "unet"
+    },
+    {
+        "name": "CLIP Text Encoder (GPT OSS 20B NVFP4)",
+        "filename": "gpt_oss_20b_nvfp4.safetensors",
+        "save_path": "text_encoders",
+        "url": "https://huggingface.co/Comfy-Org/Lens/resolve/main/text_encoders/gpt_oss_20b_nvfp4.safetensors",
+        "type": "clip"
+    },
+    {
+        "name": "Flux2 VAE",
+        "filename": "flux2-vae.safetensors",
+        "save_path": "vae",
+        "url": "https://huggingface.co/Comfy-Org/Lens/resolve/main/vae/flux2-vae.safetensors",
+        "type": "vae"
+    }
+]
+
+# Track active pods for lifecycle management
+ACTIVE_POD_IDS = set()
+LAST_HEARTBEAT_TIME = time.time()
+_HEARTBEAT_LOCK = threading.Lock()
+_ACTIVE_GENERATION_COUNT = 0
+_GEN_LOCK = threading.Lock()
 
 
-# generator/services.py
+def get_runpod_client():
+    """Lazily configure and return runpod module."""
+    try:
+        import runpod
+        api_key = os.environ.get("RUNPOD_API_KEY")
+        if api_key:
+            runpod.api_key = api_key
+        return runpod
+    except ImportError:
+        logger.warning("runpod package not installed or import failed.")
+        return None
 
-# generator/services.py
 
-def get_startup_script(workflow_type='IMAGE'):
+def terminate_pod(pod_id):
+    """Terminate a specific RunPod pod immediately to avoid extra costs."""
+    if not pod_id:
+        return False
+    rp = get_runpod_client()
+    if not rp:
+        return False
+    try:
+        logger.info(f"[RunPod] Terminating pod: {pod_id}")
+        rp.terminate_pod(pod_id)
+        ACTIVE_POD_IDS.discard(pod_id)
+        logger.info(f"[RunPod] Pod {pod_id} successfully terminated.")
+        return True
+    except Exception as e:
+        logger.error(f"[RunPod Error] Failed to terminate pod {pod_id}: {e}")
+        return False
+
+
+def terminate_all_active_pods():
+    """Terminate all tracked active RunPod pods."""
+    pods_to_kill = list(ACTIVE_POD_IDS)
+    for pid in pods_to_kill:
+        terminate_pod(pid)
+
+
+# Register exit handlers so closing the terminal / Django process terminates the pods immediately
+def _exit_cleanup(signum=None, frame=None):
+    logger.info("[Lifecycle] Process exit detected. Terminating any active RunPod pods...")
+    terminate_all_active_pods()
+    if signum is not None:
+        sys.exit(0)
+
+atexit.register(terminate_all_active_pods)
+try:
+    if threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGINT, _exit_cleanup)
+        signal.signal(signal.SIGTERM, _exit_cleanup)
+except Exception:
+    pass
+
+
+# Heartbeat & Web Disconnect Watchdog
+def record_heartbeat():
+    """Record client activity from the web UI."""
+    global LAST_HEARTBEAT_TIME
+    with _HEARTBEAT_LOCK:
+        LAST_HEARTBEAT_TIME = time.time()
+
+
+def handle_browser_disconnect():
+    """Called when user closes tab or browser window via sendBeacon."""
+    global LAST_HEARTBEAT_TIME
+    with _HEARTBEAT_LOCK:
+        LAST_HEARTBEAT_TIME = 0  # Mark expired immediately
+    with _GEN_LOCK:
+        active_gen = _ACTIVE_GENERATION_COUNT
+    if active_gen == 0 and ACTIVE_POD_IDS:
+        logger.info("[Lifecycle] Browser tab closed and no generation running. Terminating pods now...")
+        terminate_all_active_pods()
+
+
+def _heartbeat_watchdog_loop():
+    """Background monitor: terminates active pods if website was closed for > 45 seconds."""
+    while True:
+        time.sleep(10)
+        with _HEARTBEAT_LOCK:
+            idle_seconds = time.time() - LAST_HEARTBEAT_TIME
+        with _GEN_LOCK:
+            active_gen = _ACTIVE_GENERATION_COUNT
+
+        if ACTIVE_POD_IDS and active_gen == 0 and idle_seconds > 45:
+            logger.info(f"[Lifecycle] Inactive for {int(idle_seconds)}s with no open website. Auto-terminating pods...")
+            terminate_all_active_pods()
+
+# Start background watchdog daemon
+_watchdog_thread = threading.Thread(target=_heartbeat_watchdog_loop, daemon=True)
+_watchdog_thread.start()
+
+
+def get_pod_comfy_url(pod_id=None):
+    """Construct proxy URL for a pod ID, or return fallback COMFY_URL."""
+    if pod_id:
+        return f"https://{pod_id}-8188.proxy.runpod.net"
+    return os.environ.get("COMFY_URL", DEFAULT_COMFY_URL).rstrip("/")
+
+
+def check_pod_health(comfy_url):
+    """Check if ComfyUI on pod is responsive and return hardware stats."""
+    try:
+        res = requests.get(f"{comfy_url}/system_stats", timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            devices = data.get("devices", [])
+            gpu_name = devices[0].get("name", "NVIDIA GPU") if devices else "NVIDIA GPU"
+            vram_total = round(devices[0].get("vram_total", 0) / (1024 ** 3), 1) if devices else 0
+            vram_free = round(devices[0].get("vram_free", 0) / (1024 ** 3), 1) if devices else 0
+            return True, {
+                "gpu_name": gpu_name,
+                "vram_total": vram_total,
+                "vram_free": vram_free,
+                "system": data.get("system", {})
+            }
+    except Exception as e:
+        return False, str(e)
+    return False, "Non-200 status code"
+
+
+def get_loaded_models(comfy_url):
+    """Retrieve recognized model filenames from ComfyUI object_info."""
+    models = {"unet": [], "clip": [], "vae": []}
+    try:
+        r = requests.get(f"{comfy_url}/object_info", timeout=8)
+        if r.status_code == 200:
+            data = r.json()
+            unet_req = data.get("UNETLoader", {}).get("input", {}).get("required", {})
+            clip_req = data.get("CLIPLoader", {}).get("input", {}).get("required", {})
+            vae_req = data.get("VAELoader", {}).get("input", {}).get("required", {})
+
+            if "unet_name" in unet_req and unet_req["unet_name"]:
+                models["unet"] = unet_req["unet_name"][0]
+            if "clip_name" in clip_req and clip_req["clip_name"]:
+                models["clip"] = clip_req["clip_name"][0]
+            if "vae_name" in vae_req and vae_req["vae_name"]:
+                models["vae"] = vae_req["vae_name"][0]
+    except Exception as e:
+        logger.warning(f"Error querying ComfyUI models: {e}")
+    return models
+
+
+def ensure_models_on_pod(comfy_url, progress_callback=None):
     """
-    Bash script executed by RunPod.
-    - Completely avoids nested quotes to prevent RunPod SDK GraphQL crash.
-    - Downloads only required models for the specified workflow.
-    - Ends with '/start.sh' to ensure ComfyUI launches after downloading.
+    Ensure required Lens models are downloaded and recognized by ComfyUI.
+    Uses ComfyUI-RunpodDirect /server_download/start API directly on the pod for 500MB/s speeds.
     """
-    base = "/workspace/runpod-slim/ComfyUI/models"
-    dirs = [
-        f"mkdir -p {base}/unet/lens {base}/text_encoders {base}/clip {base}/vae",
-        "[ -d /workspace/ComfyUI ] && [ ! -d /workspace/runpod-slim/ComfyUI ] && ln -sf /workspace/ComfyUI /workspace/runpod-slim/ComfyUI || true",
-        "[ -d /workspace/runpod-slim/ComfyUI ] && [ ! -d /workspace/ComfyUI ] && ln -sf /workspace/runpod-slim/ComfyUI /workspace/ComfyUI || true",
-    ]
-
-    downloads = []
-    if workflow_type == 'AUDIO':
-        downloads = [
-            f"[ -f {base}/unet/acestep_v1.5_xl_turbo_bf16.safetensors ] || wget -nc -q -O {base}/unet/acestep_v1.5_xl_turbo_bf16.safetensors https://huggingface.co/Comfy-Org/AceStep_v1.5_XL_Turbo/resolve/main/acestep_v1.5_xl_turbo_bf16.safetensors",
-            f"[ -f {base}/text_encoders/qwen_0.6b_ace15.safetensors ] || wget -nc -q -O {base}/text_encoders/qwen_0.6b_ace15.safetensors https://huggingface.co/Comfy-Org/AceStep_v1.5_XL_Turbo/resolve/main/qwen_0.6b_ace15.safetensors",
-            f"[ -f {base}/text_encoders/qwen_4b_ace15.safetensors ] || wget -nc -q -O {base}/text_encoders/qwen_4b_ace15.safetensors https://huggingface.co/Comfy-Org/AceStep_v1.5_XL_Turbo/resolve/main/qwen_4b_ace15.safetensors",
-            f"[ -f {base}/vae/ace_1.5_vae.safetensors ] || wget -nc -q -O {base}/vae/ace_1.5_vae.safetensors https://huggingface.co/Comfy-Org/AceStep_v1.5_XL_Turbo/resolve/main/ace_1.5_vae.safetensors",
-        ]
-    else:
-        downloads = [
-            f"[ -f {base}/unet/lens/lens_bf16.safetensors ] || wget -nc -q -O {base}/unet/lens/lens_bf16.safetensors https://huggingface.co/Comfy-Org/Lens/resolve/main/lens_bf16.safetensors",
-            f"[ -f {base}/text_encoders/gpt_oss_20b_nvfp4.safetensors ] || wget -nc -q -O {base}/text_encoders/gpt_oss_20b_nvfp4.safetensors https://huggingface.co/Comfy-Org/Lens/resolve/main/gpt_oss_20b_nvfp4.safetensors",
-            f"[ -f {base}/vae/flux2-vae.safetensors ] || wget -nc -q -O {base}/vae/flux2-vae.safetensors https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/vae/diffusion_pytorch_model.safetensors",
-        ]
-
-    post_setup = [
-        f"ln -sf {base}/text_encoders/* {base}/clip/ 2>/dev/null || true",
-        "/start.sh"
-    ]
-
-    all_cmds = " && ".join(dirs + downloads + post_setup)
-    script = f"bash -c '{all_cmds}'"
-    return script.replace('"', '\\"')
+    loaded = get_loaded_models(comfy_url)
     
-def build_image_workflow(prompt):
+    has_unet = any("lens" in str(m).lower() for m in loaded.get("unet", []))
+    has_clip = any("gpt_oss" in str(m).lower() or "lens" in str(m).lower() for m in loaded.get("clip", []))
+    has_vae = any("flux" in str(m).lower() for m in loaded.get("vae", []))
+
+    if has_unet and has_clip and has_vae:
+        logger.info("[RunPod] All required models already present in ComfyUI!")
+        if progress_callback:
+            progress_callback(100, "All models loaded and verified.")
+        return True
+
+    # Need to trigger downloads for missing models
+    missing = []
+    if not has_unet:
+        missing.append(REQUIRED_MODELS[0])
+    if not has_clip:
+        missing.append(REQUIRED_MODELS[1])
+    if not has_vae:
+        missing.append(REQUIRED_MODELS[2])
+
+    logger.info(f"[RunPod] Triggering automated download of {len(missing)} missing models: {[m['filename'] for m in missing]}")
+
+    for idx, model in enumerate(missing):
+        if progress_callback:
+            progress_callback(int((idx / len(missing)) * 50), f"Initiating download: {model['name']}...")
+        payload = {
+            "url": model["url"],
+            "save_path": model["save_path"],
+            "filename": model["filename"],
+        }
+        try:
+            requests.post(f"{comfy_url}/server_download/start", json=payload, timeout=15)
+        except Exception as e:
+            logger.warning(f"Could not trigger /server_download/start for {model['filename']}: {e}")
+
+    # Poll /server_download/status until downloads finish
+    for poll_step in range(120):  # up to 10 minutes
+        time.sleep(5)
+        try:
+            # Refresh ComfyUI extra model paths periodically
+            try:
+                requests.post(f"{comfy_url}/extra_model_paths", timeout=5)
+            except Exception:
+                pass
+
+            loaded = get_loaded_models(comfy_url)
+            has_unet = any("lens" in str(m).lower() for m in loaded.get("unet", []))
+            has_clip = any("gpt_oss" in str(m).lower() or "lens" in str(m).lower() for m in loaded.get("clip", []))
+            has_vae = any("flux" in str(m).lower() for m in loaded.get("vae", []))
+
+            # Fetch download status for detail
+            dl_status = {}
+            try:
+                dl_status = requests.get(f"{comfy_url}/server_download/status", timeout=5).json()
+            except Exception:
+                pass
+
+            if has_unet and has_clip and has_vae:
+                logger.info("[RunPod] All models successfully verified on ComfyUI pod!")
+                if progress_callback:
+                    progress_callback(100, "All models downloaded and ready!")
+                return True
+
+            active_info = []
+            for k, v in dl_status.items():
+                if isinstance(v, dict) and v.get("status") == "downloading":
+                    prog = round(v.get("progress", 0), 1)
+                    active_info.append(f"{k.split('/')[-1]} ({prog}%)")
+
+            detail_str = f"Downloading models: {', '.join(active_info)}" if active_info else "Downloading models in background..."
+            if progress_callback:
+                progress_callback(min(90, 20 + poll_step), detail_str)
+
+        except Exception as e:
+            logger.warning(f"Polling model status error: {e}")
+
+    # Final check
+    loaded = get_loaded_models(comfy_url)
+    return any("lens" in str(m).lower() for m in loaded.get("unet", []))
+
+
+def provision_pod(gpu_candidates=None, task_callback=None):
     """
-    Image Workflow (Lens txt2img)
-    Injected user prompt directly into Node "18" (Positive CLIP Text Encode)
+    Provision a high-performance RunPod GPU pod matching RTX PRO 4000 / RTX 3090 / L4.
     """
-    return {
-      "1": {
-        "inputs": {
-          "unet_name": "lens/lens_bf16.safetensors",
-          "weight_dtype": "default"
-        },
-        "class_type": "UNETLoader"
-      },
-      "2": {
-        "inputs": {"sampler_name": "euler"},
-        "class_type": "KSamplerSelect"
-      },
-      "3": {
-        "inputs": {
-          "scheduler": "simple",
-          "steps": 20,
-          "denoise": 1,
-          "model": ["16", 0]
-        },
-        "class_type": "BasicScheduler"
-      },
-      "4": {
-        "inputs": {
-          "expression": "a & -8",
-          "values.a": ["6", 1]
-        },
-        "class_type": "ComfyMathExpression"
-      },
-      "5": {
-        "inputs": {
-          "width": ["12", 1],
-          "height": ["4", 1],
-          "batch_size": 1
-        },
-        "class_type": "EmptyLatentImage"
-      },
-      "6": {
-        "inputs": {
-          "aspect_ratio": "1:1 (Square)",
-          "megapixels": 2,
-          "multiple": 8
-        },
-        "class_type": "ResolutionSelector"
-      },
-      "7": {
-        "inputs": {
-          "add_noise": True,
-          "noise_seed": 937888105118440,
-          "cfg": 5,
-          "model": ["15", 0],
-          "positive": ["18", 0],
-          "negative": ["17", 0],
-          "sampler": ["2", 0],
-          "sigmas": ["3", 0],
-          "latent_image": ["5", 0]
-        },
-        "class_type": "SamplerCustom"
-      },
-      "8": {
-        "inputs": {
-          "samples": ["7", 0],
-          "vae": ["10", 0]
-        },
-        "class_type": "VAEDecode"
-      },
-      "9": {
-        "inputs": {
-          "clip_name": "gpt_oss_20b_nvfp4.safetensors",
-          "type": "lens",
-          "device": "default"
-        },
-        "class_type": "CLIPLoader"
-      },
-      "10": {
-        "inputs": {"vae_name": "flux2-vae.safetensors"},
-        "class_type": "VAELoader"
-      },
-      "11": {
-        "inputs": {
-          "filename_prefix": "img",
-          "images": ["8", 0]
-        },
-        "class_type": "SaveImage"
-      },
-      "12": {
-        "inputs": {
-          "expression": "a & -8",
-          "values.a": ["6", 0]
-        },
-        "class_type": "ComfyMathExpression"
-      },
-      "15": {
-        "inputs": {
-          "strength": 1,
-          "pre_cfg": False,
-          "model": ["16", 0]
-        },
-        "class_type": "CFGNorm"
-      },
-      "16": {
-        "inputs": {
-          "max_shift": 1.15,
-          "base_shift": 0.5,
-          "width": ["12", 1],
-          "height": ["4", 1],
-          "model": ["1", 0]
-        },
-        "class_type": "ModelSamplingFlux"
-      },
-      "17": {
-        "inputs": {
-          "text": "",
-          "clip": ["9", 0]
-        },
-        "class_type": "CLIPTextEncode"
-      },
-      "18": {
-        "inputs": {
-          "text": prompt,  # <--- INJECTED DYNAMIC USER PROMPT HERE
-          "clip": ["9", 0]
-        },
-        "class_type": "CLIPTextEncode"
-      }
+    rp = get_runpod_client()
+    if not rp:
+        raise Exception("RunPod SDK not configured. Please set RUNPOD_API_KEY.")
+
+    if not gpu_candidates:
+        gpu_candidates = PREFERRED_GPUS
+
+    startup_script = "bash -c 'mkdir -p /workspace/runpod-slim/ComfyUI/models/diffusion_models /workspace/runpod-slim/ComfyUI/models/unet/lens /workspace/runpod-slim/ComfyUI/models/text_encoders /workspace/runpod-slim/ComfyUI/models/clip /workspace/runpod-slim/ComfyUI/models/vae; [ -d /workspace/ComfyUI ] && [ ! -d /workspace/runpod-slim/ComfyUI ] && ln -sf /workspace/ComfyUI /workspace/runpod-slim/ComfyUI || true; [ -d /workspace/runpod-slim/ComfyUI ] && [ ! -d /workspace/ComfyUI ] && ln -sf /workspace/runpod-slim/ComfyUI /workspace/ComfyUI || true; /start.sh & sleep 5; echo ComfyUI_Started'"
+
+    pod = None
+    last_err = None
+
+    for gpu_id in gpu_candidates:
+        try:
+            if task_callback:
+                task_callback(10, f"Attempting to provision {gpu_id}...")
+            logger.info(f"[RunPod] Attempting provision with GPU: {gpu_id}")
+            pod = rp.create_pod(
+                name="veevee-pro-studio",
+                image_name="runpod/comfyui:latest",
+                gpu_type_id=gpu_id,
+                ports="8188/http",
+                container_disk_in_gb=100,
+                volume_in_gb=0,
+                docker_args=startup_script
+            )
+            if pod and "id" in pod:
+                logger.info(f"[RunPod] Successfully provisioned pod {pod['id']} with {gpu_id}")
+                break
+        except Exception as e:
+            last_err = e
+            logger.warning(f"[RunPod] GPU {gpu_id} unavailable or failed: {e}")
+            if "no longer any instances available" in str(e).lower() or "capacity" in str(e).lower():
+                continue
+
+    if not pod or "id" not in pod:
+        raise Exception(f"Unable to provision requested GPU pod ({PREFERRED_GPUS}): {last_err}")
+
+    pod_id = pod["id"]
+    ACTIVE_POD_IDS.add(pod_id)
+    pod_url = get_pod_comfy_url(pod_id)
+
+    # Poll until ComfyUI proxy responds
+    logger.info(f"[RunPod] Waiting for ComfyUI pod {pod_id} to become reachable at {pod_url}...")
+    for attempt in range(60):  # up to 5 minutes
+        time.sleep(5)
+        if task_callback:
+            task_callback(15 + int(attempt * 0.5), f"Initializing cloud container ({attempt+1}/60)...")
+        healthy, _ = check_pod_health(pod_url)
+        if healthy:
+            logger.info(f"[RunPod] Pod {pod_id} is online!")
+            break
+    else:
+        terminate_pod(pod_id)
+        raise Exception(f"Pod {pod_id} started but ComfyUI service was unreachable.")
+
+    # Automatically install and verify models
+    if task_callback:
+        task_callback(30, "Checking and downloading required pipeline models...")
+    ensure_models_on_pod(pod_url, task_callback)
+
+    return pod_id, pod_url
+
+
+def build_image_workflow(prompt, aspect_ratio="1:1 (Square)", seed=None, steps=20, cfg=5.0, negative_prompt="", available_models=None):
+    """
+    Build clean ComfyUI workflow from workflow_api.json.
+    - Strips all note / markdown cards (nodes lacking class_type).
+    - Injects dynamic user prompt into Node 18.
+    - Sets aspect ratio on Node 6.
+    - Sets random or custom seed on Node 7.
+    - Sets custom steps on Node 3 and cfg on Node 7.
+    - Dynamically selects correct UNET model name matching loaded files.
+    """
+    json_path = os.path.join(settings.BASE_DIR, "workflow_api.json")
+    with open(json_path, "r", encoding="utf-8") as f:
+        raw_wf = json.load(f)
+
+    # CRUCIAL FIX: Exclude any nodes that do not have 'class_type' (e.g. note cards 13, 14)
+    # ComfyUI throws HTTP 400 'missing_node_type' if passed nodes with class_type: null
+    clean_wf = {
+        k: v for k, v in raw_wf.items()
+        if isinstance(v, dict) and v.get("class_type")
     }
 
+    # 1. Update Positive Prompt (Node 18)
+    if "18" in clean_wf:
+        clean_wf["18"]["inputs"]["text"] = prompt
 
-def build_audio_workflow(prompt):
-    """
-    Music Workflow (Acestep v1.5 xl Turbo Text to Music)
-    Injected user prompt directly into Node "6" (TextEncodeAceStepAudio1.5 tags)
-    """
-    return {
-      "3": {
-        "inputs": {
-          "unet_name": "acestep_v1.5_xl_turbo_bf16.safetensors",
-          "weight_dtype": "default"
-        },
-        "class_type": "UNETLoader"
-      },
-      "4": {
-        "inputs": {
-          "clip_name1": "qwen_0.6b_ace15.safetensors",
-          "clip_name2": "qwen_4b_ace15.safetensors",
-          "type": "ace",
-          "device": "default"
-        },
-        "class_type": "DualCLIPLoader"
-      },
-      "5": {
-        "inputs": {"vae_name": "ace_1.5_vae.safetensors"},
-        "class_type": "VAELoader"
-      },
-      "6": {
-        "inputs": {
-          "tags": prompt,  # <--- INJECTED DYNAMIC USER PROMPT HERE
-          "lyrics": "",
-          "seed": ["14", 0],
-          "bpm": ["15", 0],
-          "duration": ["11", 0],
-          "timesignature": "4",
-          "language": "en",
-          "keyscale": "E minor",
-          "generate_audio_codes": True,
-          "cfg_scale": 2,
-          "temperature": 0.85,
-          "top_p": 0.9,
-          "top_k": 0,
-          "min_p": 0,
-          "clip": ["4", 0]
-        },
-        "class_type": "TextEncodeAceStepAudio1.5"
-      },
-      "7": {
-        "inputs": {
-          "seconds": ["11", 0],
-          "batch_size": 1
-        },
-        "class_type": "EmptyAceStep1.5LatentAudio"
-      },
-      "8": {
-        "inputs": {
-          "shift": 3,
-          "sampling": "flow",
-          "model": ["3", 0]
-        },
-        "class_type": "ModelSamplingAuraFlow"
-      },
-      "9": {
-        "inputs": {
-          "seed": ["14", 0],
-          "steps": 8,
-          "cfg": 1,
-          "sampler_name": "euler",
-          "scheduler": "simple",
-          "denoise": 1,
-          "model": ["8", 0],
-          "positive": ["6", 0],
-          "negative": ["10", 0],
-          "latent_image": ["7", 0]
-        },
-        "class_type": "KSampler"
-      },
-      "10": {
-        "inputs": {"conditioning": ["6", 0]},
-        "class_type": "ConditioningZeroOut"
-      },
-      "11": {
-        "inputs": {"value": 20},
-        "class_type": "PrimitiveFloat"
-      },
-      "12": {
-        "inputs": {
-          "samples": ["9", 0],
-          "vae": ["5", 0]
-        },
-        "class_type": "VAEDecodeAudio"
-      },
-      "13": {
-        "inputs": {
-          "filename_prefix": "audio/acestep",
-          "quality": "V0",
-          "audio": ["12", 0]
-        },
-        "class_type": "SaveAudioMP3"  # Output audio node
-      },
-      "14": {
-        "inputs": {"value": 500},
-        "class_type": "PrimitiveInt"
-      },
-      "15": {
-        "inputs": {"value": 116},
-        "class_type": "PrimitiveInt"
-      }
-    }
-# generator/services.py
+    # 2. Update Negative Prompt (Node 17)
+    if "17" in clean_wf:
+        clean_wf["17"]["inputs"]["text"] = negative_prompt or ""
 
-def process_generation_on_runpod(task_id):
+    # 3. Update Aspect Ratio (Node 6)
+    if "6" in clean_wf:
+        clean_wf["6"]["inputs"]["aspect_ratio"] = aspect_ratio
+
+    # 4. Update Random Seed & CFG (Node 7)
+    if seed is None:
+        seed = random.randint(1, 10**15)
+    if "7" in clean_wf:
+        clean_wf["7"]["inputs"]["noise_seed"] = seed
+        clean_wf["7"]["inputs"]["cfg"] = float(cfg)
+
+    # 5. Update Sampling Steps (Node 3)
+    if "3" in clean_wf:
+        clean_wf["3"]["inputs"]["steps"] = int(steps)
+
+    # 6. Resolve UNET filename in Node 1
+    if "1" in clean_wf:
+        unet_name = "lens_bf16.safetensors"
+        if available_models and available_models.get("unet"):
+            loaded_unets = available_models.get("unet", [])
+            for opt in ["lens_bf16.safetensors", "lens/lens_bf16.safetensors", "lens\\lens_bf16.safetensors"]:
+                if opt in loaded_unets:
+                    unet_name = opt
+                    break
+        clean_wf["1"]["inputs"]["unet_name"] = unet_name
+
+    return clean_wf, seed
+
+
+def process_generation_on_runpod(task_id, auto_terminate=False):
+    """
+    Full async worker:
+    1. Checks if a ComfyUI pod is already online or provisions one on-demand (RTX 4000 Ada / RTX 3090 / L4).
+    2. Automatically ensures models are downloaded.
+    3. Executes the sanitized Lens workflow.
+    4. Downloads output image and stores to GenerationTask.
+    5. Optionally terminates the pod immediately if auto_terminate is True or when local website closes.
+    """
     def worker():
+        global _ACTIVE_GENERATION_COUNT
+        with _GEN_LOCK:
+            _ACTIVE_GENERATION_COUNT += 1
+
         from .models import GenerationTask
         task = GenerationTask.objects.get(id=task_id)
         pod_id = None
+        provisioned_here = False
+
+        def update_progress(percent, detail):
+            try:
+                task.refresh_from_db()
+                task.progress_percent = percent
+                task.status_detail = detail
+                task.save(update_fields=['progress_percent', 'status_detail', 'updated_at'])
+            except Exception:
+                pass
 
         try:
             task.status = 'PROVISIONING'
             task.save()
+            update_progress(5, "Connecting to RunPod GPU...")
 
-            # 1. Provision Pod with candidate GPUs in case of capacity limitations
-            gpu_candidates = [
-                "NVIDIA GeForce RTX 3090",
-                "NVIDIA GeForce RTX 4090",
-                "NVIDIA RTX A5000",
-                "NVIDIA RTX A6000",
-                "NVIDIA GeForce RTX 3080",
-            ]
-            pod = None
-            last_err = None
-            startup_script = get_startup_script(task.workflow_type)
+            # 1. Determine target pod endpoint
+            # First check if the fallback COMFY_URL is online and healthy
+            pod_url = get_pod_comfy_url()
+            healthy, _ = check_pod_health(pod_url)
 
-            for gpu_id in gpu_candidates:
-                try:
-                    pod = runpod.create_pod(
-                        name=f"veevee-job-{task.id}",
-                        image_name="runpod/comfyui:latest",
-                        gpu_type_id=gpu_id,
-                        ports="8188/http",
-                        container_disk_in_gb=100,
-                        volume_in_gb=0,
-                        docker_args=startup_script
-                    )
-                    if pod and "id" in pod:
-                        break
-                except Exception as e:
-                    last_err = e
-                    if "no longer any instances available" in str(e).lower():
-                        continue
-                    raise e
+            if not healthy and RUNPOD_API_KEY:
+                # Provision a new pod on-demand with preferred GPUs
+                update_progress(10, "Deploying GPU pod (RTX PRO 4000 / RTX 3090 / L4)...")
+                pod_id, pod_url = provision_pod(PREFERRED_GPUS, update_progress)
+                provisioned_here = True
+                task.pod_id = pod_id
+                task.save()
+            elif not healthy:
+                raise Exception(
+                    "Default ComfyUI pod is unreachable and RUNPOD_API_KEY is not set. "
+                    "Please provide a valid RUNPOD_API_KEY or configure COMFY_URL."
+                )
 
-            if not pod or "id" not in pod:
-                raise Exception(f"Unable to provision GPU pod: {last_err}")
+            # 2. Ensure models are loaded and ready
+            task.status = 'DOWNLOADING'
+            task.save()
+            update_progress(40, "Verifying Lens models on pod...")
+            models_ok = ensure_models_on_pod(pod_url, update_progress)
+            if not models_ok:
+                raise Exception("Failed to download or verify required models on ComfyUI pod.")
 
-            pod_id = pod["id"]
-            print(f"[RunPod] Pod Created with 100GB Disk: {pod_id}")
-
-            # 2. Poll until Pod HTTP proxy is reachable AND models are fully downloaded
-            pod_url = f"https://{pod_id}-8188.proxy.runpod.net"
-            active = False
-            target_model = "acestep_v1.5_xl_turbo_bf16.safetensors" if task.workflow_type == 'AUDIO' else "lens/lens_bf16.safetensors"
-            
-            for attempt in range(120): # Up to 10 minutes waiting for 20GB downloads
-                time.sleep(5)
-                try:
-                    # Ask ComfyUI to refresh its internal model folder list
-                    try:
-                        requests.post(f"{pod_url}/extra_model_paths", timeout=5)
-                    except Exception:
-                        pass
-                    
-                    # Check object_info to confirm loaders see the downloaded models
-                    info = requests.get(f"{pod_url}/object_info", timeout=5).json()
-                    unet_models = info.get("UNETLoader", {}).get("input", {}).get("required", {}).get("unet_name", [[]])[0]
-                    
-                    if target_model in unet_models or any(target_model.split('/')[-1] in str(m) for m in unet_models):
-                        print(f"[RunPod] Model {target_model} loaded into ComfyUI successfully!")
-                        active = True
-                        break
-                    else:
-                        print(f"[RunPod] Waiting for background model downloads... ({attempt+1}/120)")
-                except Exception:
-                    continue
-
-            if not active:
-                raise Exception("RunPod engine timed out while downloading models or starting ComfyUI.")
-
-            # 3. Proceed with workflow generation
+            # 3. Build sanitized workflow from workflow_api.json
             task.status = 'GENERATING'
             task.save()
+            update_progress(55, "Dispatching workflow to ComfyUI...")
 
-            if task.workflow_type == 'AUDIO':
-                workflow = build_audio_workflow(task.prompt)
-                ext = "mp3"
-            else:
-                workflow = build_image_workflow(task.prompt)
-                ext = "png"
+            loaded_models = get_loaded_models(pod_url)
+            workflow, used_seed = build_image_workflow(
+                prompt=task.prompt,
+                aspect_ratio=task.aspect_ratio or "1:1 (Square)",
+                seed=task.seed,
+                steps=task.steps or 20,
+                cfg=task.cfg or 5.0,
+                negative_prompt=task.negative_prompt,
+                available_models=loaded_models
+            )
+            task.seed = used_seed
+            task.save()
 
-            # Post workflow to ComfyUI
-            response = requests.post(f"{pod_url}/prompt", json={"prompt": workflow}, timeout=30)
-            
-            if response.status_code != 200:
-                raise Exception(f"ComfyUI rejected prompt payload: {response.text}")
-                
-            prompt_res = response.json()
+            # Submit prompt to ComfyUI
+            resp = requests.post(f"{pod_url}/prompt", json={"prompt": workflow}, timeout=30)
+            if resp.status_code != 200:
+                raise Exception(f"ComfyUI rejected prompt: {resp.text}")
+
+            prompt_res = resp.json()
             prompt_id = prompt_res.get("prompt_id")
+            if not prompt_id:
+                raise Exception(f"No prompt_id returned by ComfyUI: {prompt_res}")
 
-            # 4. Wait for execution completion
-            history_url = f"{pod_url}/history/{prompt_id}"
+            logger.info(f"[RunPod] Prompt submitted successfully. ID: {prompt_id}")
+            update_progress(65, "Rendering image via Lens Diffusion...")
+
+            # 4. Poll history until generation finishes
             output_filename = None
             subfolder = ""
             output_type = "output"
-            
-            for _ in range(120): # Up to 6 minutes polling for high-res generation
+
+            for poll_idx in range(120):  # up to 6 minutes
                 time.sleep(3)
+                progress_step = min(95, 65 + int(poll_idx * 0.5))
+                update_progress(progress_step, f"Processing latents... ({poll_idx*3}s)")
+
                 try:
-                    hist_res = requests.get(history_url, timeout=5).json()
+                    hist_res = requests.get(f"{pod_url}/history/{prompt_id}", timeout=5).json()
                     if prompt_id in hist_res:
                         outputs = hist_res[prompt_id].get("outputs", {})
-                        for node_id, node_output in outputs.items():
-                            if "images" in node_output:
-                                output_filename = node_output["images"][0]["filename"]
-                                subfolder = node_output["images"][0].get("subfolder", "")
-                                output_type = node_output["images"][0].get("type", "output")
-                            elif "audio" in node_output:
-                                output_filename = node_output["audio"][0]["filename"]
-                                subfolder = node_output["audio"][0].get("subfolder", "")
-                                output_type = node_output["audio"][0].get("type", "output")
+                        for _, node_output in outputs.items():
+                            if "images" in node_output and node_output["images"]:
+                                img_info = node_output["images"][0]
+                                output_filename = img_info.get("filename")
+                                subfolder = img_info.get("subfolder", "")
+                                output_type = img_info.get("type", "output")
+                                break
                         break
                 except Exception:
                     continue
 
             if not output_filename:
-                raise Exception("Generation finished or failed, but no media output file was produced.")
+                raise Exception("Generation timed out or produced no output image.")
 
-            # 5. Download output and store in DB
+            # 5. Download rendered image and store in DB
+            update_progress(96, "Saving high-res image...")
             view_url = f"{pod_url}/view?filename={output_filename}&subfolder={subfolder}&type={output_type}"
-            file_data = requests.get(view_url).content
+            img_bytes = requests.get(view_url, timeout=30).content
 
-            saved_filename = f"task_{task.id}_result.{ext}"
-            task.output_file.save(saved_filename, ContentFile(file_data))
+            saved_name = f"lens_{task.id}_{output_filename}"
+            task.output_file.save(saved_name, ContentFile(img_bytes))
             task.status = 'COMPLETED'
+            task.progress_percent = 100
+            task.status_detail = "Generation finished successfully!"
             task.save()
+            logger.info(f"[RunPod] Task #{task.id} completed successfully!")
 
         except Exception as e:
-            print(f"[RunPod Worker Error] {str(e)}")
+            logger.error(f"[RunPod Worker Error] Task #{task.id} failed: {e}")
             task.status = 'FAILED'
             task.error_message = str(e)
+            task.progress_percent = 0
+            task.status_detail = f"Error: {e}"
             task.save()
 
         finally:
-            # Always terminate the pod immediately to save money
-            if pod_id:
-                try:
-                    runpod.terminate_pod(pod_id)
-                    print(f"[RunPod] Pod {pod_id} shut down successfully.")
-                except Exception as cleanup_err:
-                    print(f"[RunPod Cleanup Error] {cleanup_err}")
+            with _GEN_LOCK:
+                _ACTIVE_GENERATION_COUNT = max(0, _ACTIVE_GENERATION_COUNT - 1)
 
-    threading.Thread(target=worker).start()
+            # Auto-terminate if requested to save costs
+            if auto_terminate and pod_id and provisioned_here:
+                terminate_pod(pod_id)
+
+    threading.Thread(target=worker, daemon=True).start()

@@ -2,55 +2,1215 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>VEEVEE Studio — On-Demand Pod Generator</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VEEVEE Pro — Apple Studio Diffusion</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-page: #000000;
+            --bg-card: rgba(28, 28, 30, 0.65);
+            --bg-card-hover: rgba(36, 36, 38, 0.75);
+            --bg-input: rgba(18, 18, 20, 0.85);
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-highlight: rgba(255, 255, 255, 0.2);
+            --text-primary: #f5f5f7;
+            --text-secondary: #86868b;
+            --text-tertiary: #6e6e73;
+            --apple-blue: #0071e3;
+            --apple-blue-hover: #0077ed;
+            --apple-blue-active: #006edb;
+            --apple-green: #30d158;
+            --apple-orange: #ff9f0a;
+            --apple-red: #ff453a;
+            --font-stack: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Helvetica Neue", sans-serif;
+            --radius-pill: 980px;
+            --radius-card: 20px;
+            --radius-btn: 12px;
+            --transition-smooth: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            font-family: var(--font-stack);
+            background-color: var(--bg-page);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            letter-spacing: -0.015em;
+        }
+
+        /* Ambient Lighting */
+        .ambient-glow {
+            position: fixed;
+            top: -240px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 1000px;
+            height: 600px;
+            background: radial-gradient(ellipse, rgba(0, 113, 227, 0.15) 0%, rgba(200, 80, 255, 0.05) 50%, transparent 80%);
+            pointer-events: none;
+            z-index: 0;
+            filter: blur(80px);
+        }
+
+        /* Apple Glass Navigation Bar */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+            background: rgba(10, 10, 12, 0.75);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 12px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .apple-logo {
+            font-size: 22px;
+            line-height: 1;
+            color: #fff;
+        }
+
+        .brand-title {
+            font-weight: 600;
+            font-size: 17px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand-badge {
+            font-size: 11px;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.1);
+            color: #d1d1d6;
+            padding: 3px 8px;
+            border-radius: var(--radius-pill);
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Status Pills */
+        .telemetry-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border-subtle);
+            padding: 6px 14px;
+            border-radius: var(--radius-pill);
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--apple-orange);
+            box-shadow: 0 0 10px var(--apple-orange);
+            transition: var(--transition-smooth);
+        }
+
+        .status-dot.online {
+            background: var(--apple-green);
+            box-shadow: 0 0 10px var(--apple-green);
+        }
+
+        .status-dot.offline {
+            background: var(--apple-red);
+            box-shadow: 0 0 10px var(--apple-red);
+        }
+
+        .btn-header {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 500;
+            padding: 7px 14px;
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-header:hover {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: var(--border-highlight);
+        }
+
+        .btn-terminate {
+            background: rgba(255, 69, 58, 0.12);
+            border: 1px solid rgba(255, 69, 58, 0.3);
+            color: #ff6b62;
+        }
+
+        .btn-terminate:hover {
+            background: rgba(255, 69, 58, 0.25);
+            border-color: var(--apple-red);
+            color: #fff;
+        }
+
+        /* Main Workspace Layout */
+        main {
+            position: relative;
+            z-index: 1;
+            max-width: 1360px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 32px 24px;
+            display: grid;
+            grid-template-columns: 480px 1fr;
+            gap: 32px;
+            flex: 1;
+        }
+
+        @media (max-width: 1024px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Glass Cards */
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-card);
+            padding: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+        }
+
+        /* Prompt Input Box */
+        .prompt-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .prompt-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .prompt-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-tool {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 500;
+            padding: 4px 10px;
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-tool:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.12);
+            border-color: var(--border-highlight);
+        }
+
+        textarea.apple-input {
+            width: 100%;
+            height: 120px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 14px;
+            resize: vertical;
+            outline: none;
+            transition: var(--transition-smooth);
+        }
+
+        textarea.apple-input:focus {
+            border-color: var(--apple-blue);
+            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25);
+            background: rgba(22, 22, 24, 0.95);
+        }
+
+        /* Segmented Ratio Control */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .control-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .segmented-control {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 3px;
+            gap: 4px;
+        }
+
+        .ratio-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 500;
+            padding: 8px 4px;
+            border-radius: 9px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .ratio-btn.active {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .ratio-btn:hover:not(.active) {
+            color: #d1d1d6;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Accordion Advanced */
+        details.apple-details {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 12px 16px;
+            transition: var(--transition-smooth);
+        }
+
+        details.apple-details summary {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            list-style: none;
+        }
+
+        details.apple-details summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .details-content {
+            margin-top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .param-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .input-param {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: #fff;
+            padding: 8px 10px;
+            font-size: 12px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .input-param:focus {
+            border-color: var(--apple-blue);
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        /* Apple Primary CTA Button */
+        .btn-generate {
+            background: linear-gradient(180deg, var(--apple-blue-hover) 0%, var(--apple-blue) 100%);
+            border: none;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 14px 24px;
+            border-radius: var(--radius-btn);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 8px 24px rgba(0, 113, 227, 0.35);
+        }
+
+        .btn-generate:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 28px rgba(0, 113, 227, 0.45);
+        }
+
+        .btn-generate:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-generate:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: none;
+        }
+
+        /* Stage & Output Canvas */
+        .stage-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .stage-canvas {
+            position: relative;
+            min-height: 520px;
+            background: radial-gradient(circle at center, rgba(25, 25, 28, 0.8) 0%, rgba(12, 12, 14, 0.95) 100%);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-card);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        }
+
+        .canvas-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-tertiary);
+            text-align: center;
+            padding: 40px;
+        }
+
+        .canvas-empty-icon {
+            font-size: 44px;
+            opacity: 0.4;
+        }
+
+        /* Progress Overlay */
+        .progress-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 10, 12, 0.85);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 32px;
+            gap: 16px;
+            z-index: 10;
+        }
+
+        .progress-overlay.active {
+            display: flex;
+        }
+
+        .progress-bar-container {
+            width: 320px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-pill);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--apple-blue), #9b51e0);
+            border-radius: var(--radius-pill);
+            transition: width 0.3s ease;
+        }
+
+        .progress-detail {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Rendered Output Display */
+        .result-image-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+        }
+
+        .result-img {
+            max-width: 100%;
+            max-height: 580px;
+            object-fit: contain;
+            border-radius: 14px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8);
+            transition: var(--transition-smooth);
+            cursor: pointer;
+        }
+
+        .result-img:hover {
+            transform: scale(1.01);
+        }
+
+        .canvas-overlay-actions {
+            position: absolute;
+            bottom: 24px;
+            display: flex;
+            gap: 10px;
+            z-index: 5;
+            background: rgba(15, 15, 18, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            padding: 8px 14px;
+            border-radius: var(--radius-pill);
+            border: 1px solid var(--border-subtle);
+        }
+
+        /* Prompt Inspiration Drawer / Modal */
+        .prompt-drawer {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 200;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+        }
+
+        .prompt-drawer.active {
+            display: flex;
+        }
+
+        .drawer-content {
+            background: #141416;
+            border: 1px solid var(--border-subtle);
+            border-radius: 24px;
+            width: 100%;
+            max-width: 980px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);
+        }
+
+        .drawer-header {
+            padding: 20px 28px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .drawer-categories {
+            padding: 12px 28px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .category-pill {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            font-size: 12px;
+            padding: 5px 12px;
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .category-pill.active, .category-pill:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+        }
+
+        .prompt-grid {
+            padding: 24px 28px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .prompt-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 12px;
+            transition: var(--transition-smooth);
+            cursor: pointer;
+        }
+
+        .prompt-card:hover {
+            background: rgba(255, 255, 255, 0.07);
+            border-color: var(--border-highlight);
+            transform: translateY(-2px);
+        }
+
+        .prompt-card-category {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--apple-blue);
+            text-transform: uppercase;
+        }
+
+        .prompt-card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .prompt-card-text {
+            font-size: 12px;
+            line-height: 1.45;
+            color: var(--text-secondary);
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .prompt-card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        }
+
+        /* Lightbox modal */
+        .lightbox-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(20px);
+            z-index: 300;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 32px;
+        }
+
+        .lightbox-modal.active {
+            display: flex;
+        }
+
+        .lightbox-img {
+            max-width: 90vw;
+            max-height: 90vh;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen p-8">
-    <div class="max-w-2xl mx-auto bg-gray-800 p-6 rounded-xl shadow-lg border border-purple-500/30">
-        <h1 class="text-2xl font-bold mb-4 text-purple-400">VEEVEE UI — Dynamic Workflow Studio</h1>
-        
-        <form method="POST" enctype="multipart/form-data" class="space-y-4">
-            {% csrf_token %}
-            
-            <div>
-                <label class="block text-sm font-medium mb-1">Select Workflow</label>
-                <select name="workflow_type" class="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white">
-                    <option value="IMAGE">Image Generation (Stable Diffusion Workflow)</option>
-                    <option value="AUDIO">Audio / Music Generation (Comfy Audio Workflow)</option>
-                </select>
+<body>
+    <div class="ambient-glow"></div>
+
+    <!-- Apple Top Navigation Bar -->
+    <header>
+        <div class="brand-container">
+            <span class="apple-logo"></span>
+            <div class="brand-title">
+                VEEVEE Studio
+                <span class="brand-badge">Lens Pro</span>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <!-- Live Pod Telemetry -->
+            <div class="telemetry-pill" id="telemetryPill" title="Live Cloud Pod Telemetry">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="gpuStatusText">Detecting GPU...</span>
             </div>
 
-            <div>
-                <label class="block text-sm font-medium mb-1">Prompt</label>
-                <textarea name="prompt" required class="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white" placeholder="Enter text prompt for image or music..."></textarea>
-            </div>
-            
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-medium mb-1 text-gray-300">Input Image (Optional)</label>
-                    <input type="file" name="image" accept="image/*" class="w-full text-xs text-gray-400">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium mb-1 text-gray-300">Input Music/Audio (Optional)</label>
-                    <input type="file" name="audio" accept="audio/*" class="w-full text-xs text-gray-400">
-                </div>
-            </div>
-
-            <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 font-bold py-3 px-4 rounded transition">
-                🚀 Deploy RunPod GPU & Execute
+            <button class="btn-header" id="btnOpenStore" title="Browse 20+ Curated Prompts">
+                <span>📚 Prompt Library (22)</span>
             </button>
-        </form>
 
-        <h2 class="text-xl font-bold mt-8 mb-4">Recent Executions</h2>
-        <ul class="space-y-2">
-            {% for task in tasks %}
-                <li class="p-3 bg-gray-700 rounded flex justify-between items-center">
-                    <span>Task #{{ task.id }} ({{ task.workflow_type }})</span>
-                    <a href="{% url 'task_detail' task.id %}" class="text-purple-400 underline text-sm">View Job</a>
-                </li>
-            {% endfor %}
-        </ul>
+            <button class="btn-header btn-terminate" id="btnTerminatePod" title="Terminate Cloud GPU Pod Immediately">
+                <span>🛑 Terminate Pod</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Studio Workspace -->
+    <main>
+        <!-- Left: Studio Controls -->
+        <section class="glass-card">
+            <div class="section-header">
+                <span class="section-title">Generation Studio</span>
+                <span class="text-tertiary" style="font-size: 11px;">Lens txt2img Pipeline</span>
+            </div>
+
+            <!-- Prompt Input -->
+            <div class="prompt-wrapper">
+                <div class="prompt-toolbar">
+                    <label class="control-label">Text Prompt</label>
+                    <div class="prompt-actions">
+                        <button type="button" class="btn-tool" id="btnSurpriseMe" title="Pick a random prompt from curated library">
+                            <span>🎲 Surprise Me</span>
+                        </button>
+                        <button type="button" class="btn-tool" id="btnClearPrompt">Clear</button>
+                    </div>
+                </div>
+
+                <textarea id="promptInput" class="apple-input" placeholder="Describe the scene in detail, lighting, subject, textures, artistic direction..." required>{{ prompts.0.prompt }}</textarea>
+            </div>
+
+            <!-- Aspect Ratio Selector -->
+            <div class="control-group">
+                <label class="control-label">Aspect Ratio</label>
+                <div class="segmented-control" id="ratioSelector">
+                    <button type="button" class="ratio-btn active" data-ratio="1:1 (Square)">
+                        <span>1:1</span>
+                        <span style="font-size: 9px; opacity: 0.7;">Square</span>
+                    </button>
+                    <button type="button" class="ratio-btn" data-ratio="16:9 (Landscape)">
+                        <span>16:9</span>
+                        <span style="font-size: 9px; opacity: 0.7;">Cinema</span>
+                    </button>
+                    <button type="button" class="ratio-btn" data-ratio="9:16 (Portrait)">
+                        <span>9:16</span>
+                        <span style="font-size: 9px; opacity: 0.7;">Story</span>
+                    </button>
+                    <button type="button" class="ratio-btn" data-ratio="4:3 (Landscape)">
+                        <span>4:3</span>
+                        <span style="font-size: 9px; opacity: 0.7;">Classic</span>
+                    </button>
+                    <button type="button" class="ratio-btn" data-ratio="3:4 (Portrait)">
+                        <span>3:4</span>
+                        <span style="font-size: 9px; opacity: 0.7;">Portrait</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Advanced Configuration Accordion -->
+            <details class="apple-details">
+                <summary>
+                    <span>Advanced Hyperparameters</span>
+                    <span>⚙️</span>
+                </summary>
+                <div class="details-content">
+                    <div>
+                        <label class="control-label" style="font-size: 11px;">Negative Prompt (Optional)</label>
+                        <input type="text" id="negativePromptInput" class="input-param" placeholder="blurry, distorted, low quality, artifacts, watermark">
+                    </div>
+
+                    <div class="param-row">
+                        <div>
+                            <label class="control-label" style="font-size: 11px;">Steps</label>
+                            <input type="number" id="stepsInput" class="input-param" value="20" min="10" max="50">
+                        </div>
+                        <div>
+                            <label class="control-label" style="font-size: 11px;">CFG Scale</label>
+                            <input type="number" id="cfgInput" class="input-param" value="5.0" step="0.5" min="1" max="15">
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label class="control-label" style="font-size: 11px;">Seed (Blank for Random)</label>
+                            <button type="button" class="btn-tool" id="btnRandomizeSeed" style="padding: 2px 6px;">🎲 New</button>
+                        </div>
+                        <input type="number" id="seedInput" class="input-param" placeholder="Auto-generated each run">
+                    </div>
+
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="autoTerminateCheckbox">
+                        <span>Auto-terminate GPU Pod immediately after generation</span>
+                    </label>
+                </div>
+            </details>
+
+            <!-- Primary Generate Action -->
+            <button type="button" class="btn-generate" id="btnGenerate">
+                <span id="btnGenIcon">✦</span>
+                <span id="btnGenText">Generate Masterpiece</span>
+            </button>
+        </section>
+
+        <!-- Right: Studio Stage / Canvas -->
+        <section class="stage-container">
+            <div class="stage-canvas" id="stageCanvas">
+                <!-- Empty Placeholder -->
+                <div class="canvas-empty" id="canvasEmpty">
+                    <span class="canvas-empty-icon">🎨</span>
+                    <h3 style="font-size: 16px; font-weight: 500; color: #d1d1d6;">Studio Stage Ready</h3>
+                    <p style="font-size: 13px; max-width: 320px;">Enter a prompt or select one from the Prompt Library and click Generate.</p>
+                </div>
+
+                <!-- Progress Loading Overlay -->
+                <div class="progress-overlay" id="progressOverlay">
+                    <div style="font-size: 32px; animation: pulse 1.5s infinite;">⚡️</div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" id="progressBarFill"></div>
+                    </div>
+                    <div class="progress-detail" id="progressDetailText">Connecting to GPU Pod...</div>
+                    <div style="font-size: 11px; color: var(--text-tertiary);" id="progressSubDetail">Allocating high-speed VRAM</div>
+                </div>
+
+                <!-- Generated Image Display -->
+                <div class="result-image-wrapper" id="resultWrapper" style="display: none;">
+                    <img id="resultImg" class="result-img" alt="Rendered Artwork" title="Click to view full screen">
+                    <div class="canvas-overlay-actions">
+                        <button type="button" class="btn-tool" id="btnDownload">⬇ Download PNG</button>
+                        <button type="button" class="btn-tool" id="btnCopyPrompt">📋 Copy Prompt</button>
+                        <button type="button" class="btn-tool" id="btnViewFull">⤢ Fullscreen</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Prompt Inspiration Library Modal -->
+    <div class="prompt-drawer" id="promptDrawer">
+        <div class="drawer-content">
+            <div class="drawer-header">
+                <div>
+                    <h2 style="font-size: 18px; font-weight: 600;">Prompt Inspiration Store</h2>
+                    <p style="font-size: 12px; color: var(--text-secondary);">Curated high-detail prompts optimized for the Lens Diffusion Model</p>
+                </div>
+                <button type="button" class="btn-tool" id="btnCloseDrawer" style="font-size: 16px; padding: 6px 12px;">✕</button>
+            </div>
+
+            <div class="drawer-categories" id="drawerCategories">
+                <button type="button" class="category-pill active" data-category="ALL">All Prompts (22)</button>
+                <button type="button" class="category-pill" data-category="Culinary & Food">Culinary</button>
+                <button type="button" class="category-pill" data-category="Future Tech & Hardware">Apple & Tech</button>
+                <button type="button" class="category-pill" data-category="Editorial Fashion">Fashion</button>
+                <button type="button" class="category-pill" data-category="Architecture & Spaces">Architecture</button>
+                <button type="button" class="category-pill" data-category="Wildlife & Nature">Nature</button>
+                <button type="button" class="category-pill" data-category="Automotive">Automotive</button>
+                <button type="button" class="category-pill" data-category="Surrealist & 3D Art">Surreal & 3D</button>
+                <button type="button" class="category-pill" data-category="Cinematic Street">Cinematic</button>
+            </div>
+
+            <div class="prompt-grid" id="promptGrid">
+                <!-- Dynamically populated from PROMPT_STORE -->
+            </div>
+        </div>
     </div>
+
+    <!-- Fullscreen Lightbox Modal -->
+    <div class="lightbox-modal" id="lightboxModal">
+        <img id="lightboxImg" class="lightbox-img" alt="Fullscreen View">
+    </div>
+
+    <script>
+        // CSRF Utility
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Active State
+        let selectedAspectRatio = "1:1 (Square)";
+        let activeTaskId = null;
+        let pollingInterval = null;
+        let allPrompts = [];
+
+        // Elements
+        const promptInput = document.getElementById("promptInput");
+        const negativePromptInput = document.getElementById("negativePromptInput");
+        const stepsInput = document.getElementById("stepsInput");
+        const cfgInput = document.getElementById("cfgInput");
+        const seedInput = document.getElementById("seedInput");
+        const autoTerminateCheckbox = document.getElementById("autoTerminateCheckbox");
+        const btnGenerate = document.getElementById("btnGenerate");
+        const btnGenText = document.getElementById("btnGenText");
+        const btnGenIcon = document.getElementById("btnGenIcon");
+        const stageCanvas = document.getElementById("stageCanvas");
+        const canvasEmpty = document.getElementById("canvasEmpty");
+        const progressOverlay = document.getElementById("progressOverlay");
+        const progressBarFill = document.getElementById("progressBarFill");
+        const progressDetailText = document.getElementById("progressDetailText");
+        const resultWrapper = document.getElementById("resultWrapper");
+        const resultImg = document.getElementById("resultImg");
+        const telemetryPill = document.getElementById("telemetryPill");
+        const statusDot = document.getElementById("statusDot");
+        const gpuStatusText = document.getElementById("gpuStatusText");
+        const promptDrawer = document.getElementById("promptDrawer");
+        const promptGrid = document.getElementById("promptGrid");
+        const lightboxModal = document.getElementById("lightboxModal");
+        const lightboxImg = document.getElementById("lightboxImg");
+
+        // Aspect Ratio Segmented Control
+        document.querySelectorAll("#ratioSelector .ratio-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll("#ratioSelector .ratio-btn").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                selectedAspectRatio = btn.getAttribute("data-ratio");
+            });
+        });
+
+        // Live System Telemetry Polling
+        async function fetchSystemStatus() {
+            try {
+                const res = await fetch("/api/system/status/");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.connected) {
+                        statusDot.className = "status-dot online";
+                        const vramInfo = data.vram_total_gb ? ` | ${data.vram_total_gb}GB` : "";
+                        gpuStatusText.textContent = `${data.gpu_name}${vramInfo}`;
+                        telemetryPill.title = `Pod: ${data.pod_url}\nModels: ${data.models_ready ? 'Lens & GPT-OSS Ready' : 'Downloading'}`;
+                    } else {
+                        statusDot.className = "status-dot offline";
+                        gpuStatusText.textContent = "Pod Offline (On-Demand Ready)";
+                        telemetryPill.title = "A GPU Pod (RTX 4000 Ada / RTX 3090 / L4) will deploy automatically on generation.";
+                    }
+                }
+            } catch (err) {
+                statusDot.className = "status-dot offline";
+                gpuStatusText.textContent = "Connecting...";
+            }
+        }
+        fetchSystemStatus();
+        setInterval(fetchSystemStatus, 6000);
+
+        // Heartbeat Keepalive (Every 10 seconds)
+        setInterval(() => {
+            fetch("/api/pod/heartbeat/", { method: "POST" });
+        }, 10000);
+
+        // Auto-terminate Pod when Browser Tab or Window is closed
+        window.addEventListener("beforeunload", () => {
+            navigator.sendBeacon("/api/pod/terminate_on_close/");
+        });
+        window.addEventListener("pagehide", () => {
+            navigator.sendBeacon("/api/pod/terminate_on_close/");
+        });
+
+        // Terminate Pod Button
+        document.getElementById("btnTerminatePod").addEventListener("click", async () => {
+            if (confirm("Terminate cloud GPU pod now to stop billing immediately?")) {
+                gpuStatusText.textContent = "Shutting down pod...";
+                try {
+                    const res = await fetch("/api/pod/terminate/", { method: "POST" });
+                    const data = await res.json();
+                    alert(data.message || "Pod terminated.");
+                    fetchSystemStatus();
+                } catch (e) {
+                    alert("Error terminating pod: " + e);
+                }
+            }
+        });
+
+        // Fetch Prompt Library
+        async function loadPrompts() {
+            try {
+                const res = await fetch("/api/prompts/");
+                if (res.ok) {
+                    const data = await res.json();
+                    allPrompts = data.prompts || [];
+                    renderPromptGrid(allPrompts);
+                }
+            } catch (e) {
+                console.error("Failed to load prompts", e);
+            }
+        }
+        loadPrompts();
+
+        function renderPromptGrid(promptsToRender) {
+            promptGrid.innerHTML = "";
+            promptsToRender.forEach(p => {
+                const card = document.createElement("div");
+                card.className = "prompt-card";
+                card.innerHTML = `
+                    <div>
+                        <div class="prompt-card-category">${p.category}</div>
+                        <div class="prompt-card-title">${p.title}</div>
+                        <p class="prompt-card-text">${p.prompt}</p>
+                    </div>
+                    <div class="prompt-card-footer">
+                        <span style="font-size: 11px; color: var(--text-tertiary);">${p.tags.join(" • ")}</span>
+                        <button type="button" class="btn-tool" style="background: rgba(0, 113, 227, 0.2); color: #fff; border-color: rgba(0, 113, 227, 0.4);">Use Prompt ➔</button>
+                    </div>
+                `;
+                card.addEventListener("click", () => {
+                    promptInput.value = p.prompt;
+                    promptDrawer.classList.remove("active");
+                    promptInput.scrollIntoView({ behavior: 'smooth' });
+                    promptInput.focus();
+                });
+                promptGrid.appendChild(card);
+            });
+        }
+
+        // Category Filtering
+        document.querySelectorAll("#drawerCategories .category-pill").forEach(pill => {
+            pill.addEventListener("click", () => {
+                document.querySelectorAll("#drawerCategories .category-pill").forEach(p => p.classList.remove("active"));
+                pill.classList.add("active");
+                const cat = pill.getAttribute("data-category");
+                if (cat === "ALL") {
+                    renderPromptGrid(allPrompts);
+                } else {
+                    renderPromptGrid(allPrompts.filter(p => p.category === cat));
+                }
+            });
+        });
+
+        // Store Drawer Open/Close
+        document.getElementById("btnOpenStore").addEventListener("click", () => {
+            promptDrawer.classList.add("active");
+        });
+        document.getElementById("btnCloseDrawer").addEventListener("click", () => {
+            promptDrawer.classList.remove("active");
+        });
+        promptDrawer.addEventListener("click", (e) => {
+            if (e.target === promptDrawer) promptDrawer.classList.remove("active");
+        });
+
+        // Surprise Me / Random Prompt Button
+        document.getElementById("btnSurpriseMe").addEventListener("click", () => {
+            if (!allPrompts.length) return;
+            const randomP = allPrompts[Math.floor(Math.random() * allPrompts.length)];
+            promptInput.value = randomP.prompt;
+            promptInput.style.borderColor = "var(--apple-blue)";
+            setTimeout(() => { promptInput.style.borderColor = "var(--border-subtle)"; }, 700);
+        });
+
+        document.getElementById("btnClearPrompt").addEventListener("click", () => {
+            promptInput.value = "";
+            promptInput.focus();
+        });
+
+        document.getElementById("btnRandomizeSeed").addEventListener("click", () => {
+            seedInput.value = Math.floor(Math.random() * 9999999999999);
+        });
+
+        // Generation Trigger
+        btnGenerate.addEventListener("click", async () => {
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                alert("Please enter a prompt describing your desired image.");
+                promptInput.focus();
+                return;
+            }
+
+            btnGenerate.disabled = true;
+            btnGenText.textContent = "Processing...";
+            btnGenIcon.textContent = "⏳";
+            canvasEmpty.style.display = "none";
+            resultWrapper.style.display = "none";
+            progressOverlay.classList.add("active");
+            progressBarFill.style.width = "10%";
+            progressDetailText.textContent = "Connecting to RunPod GPU...";
+
+            const formData = new FormData();
+            formData.append("prompt", prompt);
+            formData.append("negative_prompt", negativePromptInput.value.trim());
+            formData.append("aspect_ratio", selectedAspectRatio);
+            if (seedInput.value.trim()) formData.append("seed", seedInput.value.trim());
+            formData.append("steps", stepsInput.value || 20);
+            formData.append("cfg", cfgInput.value || 5.0);
+            formData.append("auto_terminate", autoTerminateCheckbox.checked);
+
+            try {
+                const res = await fetch("/api/generate/", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.status === "ok") {
+                    activeTaskId = data.task_id;
+                    startPolling(activeTaskId);
+                } else {
+                    throw new Error(data.message || "Failed to initiate generation.");
+                }
+            } catch (err) {
+                alert("Generation error: " + err.message);
+                resetGenerateBtn();
+                progressOverlay.classList.remove("active");
+                canvasEmpty.style.display = "flex";
+            }
+        });
+
+        // Poll Task Status
+        function startPolling(taskId) {
+            if (pollingInterval) clearInterval(pollingInterval);
+
+            pollingInterval = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/status/${taskId}/`);
+                    if (res.ok) {
+                        const task = await res.json();
+                        const percent = task.progress_percent || 15;
+                        progressBarFill.style.width = `${percent}%`;
+                        progressDetailText.textContent = task.status_detail || `Processing (${percent}%)...`;
+
+                        if (task.status === "COMPLETED" && task.output_url) {
+                            clearInterval(pollingInterval);
+                            finishGeneration(task.output_url, task.seed);
+                        } else if (task.status === "FAILED") {
+                            clearInterval(pollingInterval);
+                            alert("Generation failed: " + (task.error_message || "Unknown error"));
+                            resetGenerateBtn();
+                            progressOverlay.classList.remove("active");
+                            canvasEmpty.style.display = "flex";
+                        }
+                    }
+                } catch (e) {
+                    console.error("Polling error", e);
+                }
+            }, 2500);
+        }
+
+        function finishGeneration(imageUrl, seed) {
+            resetGenerateBtn();
+            progressOverlay.classList.remove("active");
+            resultImg.src = imageUrl;
+            resultWrapper.style.display = "flex";
+            if (seed) seedInput.value = seed;
+
+            // Trigger telemetry update
+            fetchSystemStatus();
+        }
+
+        function resetGenerateBtn() {
+            btnGenerate.disabled = false;
+            btnGenText.textContent = "Generate Masterpiece";
+            btnGenIcon.textContent = "✦";
+        }
+
+        // Image Actions
+        document.getElementById("btnDownload").addEventListener("click", () => {
+            if (!resultImg.src) return;
+            const a = document.createElement("a");
+            a.href = resultImg.src;
+            a.download = `veevee_lens_${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+
+        document.getElementById("btnCopyPrompt").addEventListener("click", () => {
+            navigator.clipboard.writeText(promptInput.value);
+            alert("Prompt copied to clipboard!");
+        });
+
+        resultImg.addEventListener("click", () => {
+            lightboxImg.src = resultImg.src;
+            lightboxModal.classList.add("active");
+        });
+
+        document.getElementById("btnViewFull").addEventListener("click", () => {
+            lightboxImg.src = resultImg.src;
+            lightboxModal.classList.add("active");
+        });
+
+        lightboxModal.addEventListener("click", () => {
+            lightboxModal.classList.remove("active");
+        });
+    </script>
 </body>
 </html>

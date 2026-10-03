@@ -1,0 +1,17 @@
+.env
+.env.*
+venv/
+.venv/
+*.pyc
+__pycache__/
+*.sqlite3
+db.sqlite3
+.DS_Store
+media/
+results/
+models/
+*.safetensors
+*.ckpt
+*.pt
+*.bin
+*.part

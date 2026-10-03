@@ -221,39 +221,43 @@ def api_generate(request):
     if request.method != 'POST':
         return JsonResponse({"status": "error", "message": "POST method required"}, status=405)
 
-    prompt = request.POST.get("prompt", "").strip()
-    if not prompt:
-        return JsonResponse({"status": "error", "message": "Please provide a text prompt"}, status=400)
+    try:
+        prompt = request.POST.get("prompt", "").strip()
+        if not prompt:
+            return JsonResponse({"status": "error", "message": "Please provide a text prompt"}, status=400)
 
-    negative_prompt = request.POST.get("negative_prompt", "").strip()
-    aspect_ratio = request.POST.get("aspect_ratio", "1:1 (Square)")
-    
-    seed_str = request.POST.get("seed", "").strip()
-    seed = int(seed_str) if seed_str.isdigit() else None
-    
-    steps = int(request.POST.get("steps", 20))
-    cfg = float(request.POST.get("cfg", 5.0))
-    auto_terminate = request.POST.get("auto_terminate", "false").lower() in ["true", "1", "yes"]
+        negative_prompt = request.POST.get("negative_prompt", "").strip()
+        aspect_ratio = request.POST.get("aspect_ratio", "1:1 (Square)")
+        
+        seed_str = request.POST.get("seed", "").strip()
+        seed = int(seed_str) if seed_str.isdigit() else None
+        
+        steps = int(request.POST.get("steps", 20))
+        cfg = float(request.POST.get("cfg", 5.0))
+        auto_terminate = request.POST.get("auto_terminate", "false").lower() in ["true", "1", "yes"]
 
-    task = GenerationTask.objects.create(
-        workflow_type='IMAGE',
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        aspect_ratio=aspect_ratio,
-        seed=seed,
-        steps=steps,
-        cfg=cfg,
-        status='PENDING',
-        status_detail='Queued for execution...'
-    )
+        task = GenerationTask.objects.create(
+            workflow_type='IMAGE',
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            aspect_ratio=aspect_ratio,
+            seed=seed,
+            steps=steps,
+            cfg=cfg,
+            status='PENDING',
+            status_detail='Queued for execution...'
+        )
 
-    process_generation_on_runpod(task.id, auto_terminate=auto_terminate)
+        process_generation_on_runpod(task.id, auto_terminate=auto_terminate)
 
-    return JsonResponse({
-        "status": "ok",
-        "task_id": task.id,
-        "message": "Generation initiated successfully."
-    })
+        return JsonResponse({
+            "status": "ok",
+            "task_id": task.id,
+            "message": "Generation initiated successfully."
+        })
+    except Exception as e:
+        logger.error(f"Error in api_generate: {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
 def api_task_status(request, task_id):

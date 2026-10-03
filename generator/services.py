@@ -67,17 +67,29 @@ _ACTIVE_GENERATION_COUNT = 0
 _GEN_LOCK = threading.Lock()
 
 
+def get_runpod_api_key():
+    """Dynamically fetch the RunPod API key from environment or .env file."""
+    key = os.environ.get("RUNPOD_API_KEY")
+    if not key:
+        env_f = Path(settings.BASE_DIR) / '.env'
+        if env_f.exists():
+            load_dotenv(dotenv_path=env_f, override=True)
+            key = os.environ.get("RUNPOD_API_KEY")
+    return key
+
+
 def get_runpod_client():
     """Lazily configure and return runpod module."""
     try:
         import runpod
-        api_key = os.environ.get("RUNPOD_API_KEY")
+        api_key = get_runpod_api_key()
         if api_key:
             runpod.api_key = api_key
         return runpod
     except ImportError:
         logger.warning("runpod package not installed or import failed.")
         return None
+
 
 
 def terminate_pod(pod_id):
@@ -459,8 +471,9 @@ def process_generation_on_runpod(task_id, auto_terminate=False):
             # First check if the fallback COMFY_URL is online and healthy
             pod_url = get_pod_comfy_url()
             healthy, _ = check_pod_health(pod_url)
+            api_key = get_runpod_api_key()
 
-            if not healthy and RUNPOD_API_KEY:
+            if not healthy and api_key:
                 # Provision a new pod on-demand with preferred GPUs
                 update_progress(10, "Deploying GPU pod (RTX PRO 4000 / RTX 3090 / L4)...")
                 pod_id, pod_url = provision_pod(PREFERRED_GPUS, update_progress)
@@ -470,7 +483,7 @@ def process_generation_on_runpod(task_id, auto_terminate=False):
             elif not healthy:
                 raise Exception(
                     "Default ComfyUI pod is unreachable and RUNPOD_API_KEY is not set. "
-                    "Please provide a valid RUNPOD_API_KEY or configure COMFY_URL."
+                    "Please provide a valid RUNPOD_API_KEY in .env or configure COMFY_URL."
                 )
 
             # 2. Ensure models are loaded and ready
